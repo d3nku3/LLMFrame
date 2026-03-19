@@ -453,7 +453,9 @@ function syncStage4PackageManifest(pkg, targetState, originMode) {
     pkg.implementationArtifactId = "";
     targetState.manifest.slotHeads.packageImplementation[pkg.key] = "";
   } else {
-    const implementationParents = [pkg.packageArtifactId, ...currentDependencyArtifactIds(pkg, targetState)];
+    const dependencyArtifactIds = currentDependencyArtifactIds(pkg, targetState);
+    const implementationParents = [pkg.packageArtifactId];
+    const implementationConsumed = normalizeParentIds([pkg.packageArtifactId, ...dependencyArtifactIds]);
     const implementationArtifactId = createOrReuseArtifactRecord(targetState, {
       currentArtifactId: pkg.implementationArtifactId,
       previousHeadId: targetState.manifest.slotHeads.packageImplementation[pkg.key] || pkg.implementationArtifactId,
@@ -465,6 +467,7 @@ function syncStage4PackageManifest(pkg, targetState, originMode) {
       packageKey: pkg.key,
       packageId: pkg.packageId,
       parentArtifactIds: implementationParents,
+      consumedArtifactIds: implementationConsumed,
       consumingStageContext: "Current implementation output saved for review and merge evaluation.",
       sourceOrigin: inferArtifactOrigin(originMode, false),
       attributes: {

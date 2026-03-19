@@ -994,6 +994,21 @@ function bindDynamicEvents() {
     }
     finalizeRender();
   });
+  bindIf("archiveStaleBtn", async () => {
+    const archivable = manifestArtifactList(state).filter(r =>
+      (r.status === "superseded" || r.status === "orphaned" || r.status === "stale") &&
+      !new Set(currentHeadArtifactIds(state)).has(r.artifactId) &&
+      r.relativePath &&
+      !r.relativePath.startsWith("archive/")
+    );
+    if (!archivable.length) return;
+    if (!confirm(`Move ${archivable.length} superseded/stale file${archivable.length === 1 ? "" : "s"} to the archive folder?`)) return;
+    await archiveSupersededFiles(state);
+    await persistManifest(state.manifest);
+    setActionSummary(`Archived ${archivable.length} file${archivable.length === 1 ? "" : "s"}. Stage folders now contain only current artifacts.`);
+    render();
+  });
+
   bindIf("downloadManifestBtn", () => downloadText("09_Operator_Console_Artifact_Manifest.json", JSON.stringify(state.manifest, null, 2)));
   bindIf("downloadStage3SetBtn", () => state.stage3.rawOutputText.trim() ? downloadAllSavedArtifacts() : alert("No Stage 03 result is saved yet."));
   bindIf("downloadSummaryBtnInline", downloadAllSavedArtifacts);
@@ -1040,6 +1055,8 @@ function bindDynamicEvents() {
         alert("No package is selected.");
         return;
       }
+      const textarea = document.getElementById("stage4ReturnInput");
+      const savedValue = textarea ? textarea.value : "";
       dropZone.textContent = `Importing ${files.length} file(s)...`;
       try {
         const result = await importFilesIntoPackage(pkg, files);
@@ -1052,6 +1069,8 @@ function bindDynamicEvents() {
       } finally {
         dropZone.textContent = "Drop files here or click to select";
         render();
+        const restored = document.getElementById("stage4ReturnInput");
+        if (restored && savedValue) restored.value = savedValue;
       }
     });
 
@@ -1064,6 +1083,8 @@ function bindDynamicEvents() {
         packageFileInput.value = "";
         return;
       }
+      const textarea = document.getElementById("stage4ReturnInput");
+      const savedValue = textarea ? textarea.value : "";
       const result = await importFilesIntoPackage(pkg, files);
       packageFileInput.value = "";
       if (result.error) {
@@ -1073,6 +1094,8 @@ function bindDynamicEvents() {
         setWorkspaceStatus(msg, result.failed ? "warn" : "success");
       }
       render();
+      const restored = document.getElementById("stage4ReturnInput");
+      if (restored && savedValue) restored.value = savedValue;
     });
   }
 

@@ -53,6 +53,7 @@ function createDefaultState() {
     version: BACKUP_VERSION,
     projectName: "",
     projectNotes: "",
+    accentColor: "",
     referenceFiles: [],
     llms: {},
     llmCatalog: {},
@@ -215,6 +216,7 @@ function normalizeImportedState(rawInput) {
 
   normalized.projectName = safeText(safeInput.projectName).trim().slice(0, 500);
   normalized.projectNotes = safeText(safeInput.projectNotes);
+  normalized.accentColor = /^#[0-9a-fA-F]{6}$/.test(safeText(safeInput.accentColor).trim()) ? safeText(safeInput.accentColor).trim() : "";
   normalized.referenceFiles = (Array.isArray(safeInput.referenceFiles) ? safeInput.referenceFiles : [])
     .map(normalizeImportedReferenceFile)
     .filter(Boolean)

@@ -1,6 +1,12 @@
 // 09_init.js — Application startup
 // Performs initial workspace restore, first render, and event binding.
 
+// Global drop guard: prevent browser from navigating to dropped files
+// when the drop lands outside a textarea or designated drop zone.
+// Specific handlers on textareas and drop zones still work normally.
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", e => e.preventDefault());
+
 async function initApp() {
   if (!FSAPI_SUPPORTED) {
     renderUnsupportedBrowserBlock();
@@ -56,6 +62,7 @@ async function initApp() {
   }
 
   await syncWorkflowState("", { persist: false });
+  applyAccentColor(state.accentColor);
   render();
   bindEvents();
 

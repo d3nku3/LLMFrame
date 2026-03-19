@@ -109,6 +109,49 @@
       flex-wrap: wrap;
     }
 
+    .accent-picker {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .accent-swatch {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: 0.15s ease;
+      padding: 0;
+    }
+
+    .accent-swatch:hover {
+      transform: scale(1.2);
+    }
+
+    .accent-swatch.active {
+      border-color: var(--text);
+      box-shadow: 0 0 6px rgba(255,255,255,0.3);
+    }
+
+    body.defcon-mode::after {
+      content: "";
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.06) 0px,
+        rgba(0, 0, 0, 0.06) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+    }
+
     .quiet-btn,
     .chip-btn,
     .ghost-btn,

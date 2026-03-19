@@ -121,6 +121,19 @@ function renderWorkspaceIndicator() {
   parts.push(`
     <button class="ghost-btn" id="switchWorkspaceBtn" type="button" style="padding:8px 12px;font-size:0.85rem;">Switch project</button>
   `);
+  const ACCENT_PRESETS = [
+    { color: "#6ee7b7", label: "Default" },
+    { color: "#93c5fd", label: "Blue" },
+    { color: "#c4b5fd", label: "Purple" },
+    { color: "#fdba74", label: "Orange" },
+    { color: "#fda4af", label: "Pink" },
+    { color: "#33ff00", label: "DEFCON" }
+  ];
+  const currentAccent = state.accentColor || "#6ee7b7";
+  const swatches = ACCENT_PRESETS.map(p =>
+    `<button class="accent-swatch${p.color === currentAccent ? " active" : ""}" data-accent="${p.color}" title="${p.label}" style="background:${p.color};"></button>`
+  ).join("");
+  parts.push(`<div class="accent-picker">${swatches}</div>`);
   el.innerHTML = parts.join("");
 
   const btn = document.getElementById("switchWorkspaceBtn");
@@ -144,6 +157,80 @@ function renderWorkspaceIndicator() {
       }
     });
   }
+
+  el.querySelectorAll(".accent-swatch").forEach(swatch => {
+    swatch.addEventListener("click", () => {
+      const color = swatch.getAttribute("data-accent");
+      if (!color) return;
+      state.accentColor = color === "#6ee7b7" ? "" : color;
+      applyAccentColor(color);
+      renderWorkspaceIndicator();
+      saveState("accent color changed").catch(err => console.error("Persistence failed", err));
+    });
+  });
+}
+
+function applyAccentColor(color) {
+  const root = document.documentElement;
+  const c = color || "#6ee7b7";
+  root.style.setProperty("--accent", c);
+  document.body.classList.remove("defcon-mode");
+
+  // Remove accent stripe if exists
+  let stripe = document.getElementById("accentStripe");
+
+  if (c === "#33ff00") {
+    root.style.setProperty("--text", "#33ff00");
+    root.style.setProperty("--soft", "#22cc00");
+    root.style.setProperty("--muted", "#1a9900");
+    root.style.setProperty("--success", "#33ff00");
+    root.style.setProperty("--panel", "#0a0f0a");
+    root.style.setProperty("--panel-2", "#0d140d");
+    root.style.setProperty("--panel-3", "#071007");
+    root.style.setProperty("--border", "#1a3a1a");
+    document.body.style.background = "radial-gradient(circle at top, #0a1a0a 0%, #050a05 48%)";
+    document.body.classList.add("defcon-mode");
+    if (stripe) stripe.style.background = "#33ff00";
+    else { stripe = createAccentStripe("#33ff00"); }
+  } else if (c === "#6ee7b7") {
+    // Default — remove all overrides
+    root.style.removeProperty("--text");
+    root.style.removeProperty("--soft");
+    root.style.removeProperty("--muted");
+    root.style.removeProperty("--success");
+    root.style.removeProperty("--accent-2");
+    root.style.removeProperty("--panel");
+    root.style.removeProperty("--panel-2");
+    root.style.removeProperty("--panel-3");
+    root.style.removeProperty("--border");
+    document.body.style.background = "";
+    if (stripe) stripe.remove();
+  } else {
+    // Tinted theme: derive border and panel tints from accent
+    const r = parseInt(c.slice(1, 3), 16);
+    const g = parseInt(c.slice(3, 5), 16);
+    const b = parseInt(c.slice(5, 7), 16);
+    root.style.setProperty("--border", `rgba(${r}, ${g}, ${b}, 0.4)`);
+    root.style.setProperty("--panel", `rgba(${r}, ${g}, ${b}, 0.08)`);
+    root.style.setProperty("--panel-2", `rgba(${r}, ${g}, ${b}, 0.12)`);
+    root.style.setProperty("--panel-3", `rgba(${r}, ${g}, ${b}, 0.06)`);
+    root.style.setProperty("--accent-2", c);
+    root.style.setProperty("--success", c);
+    root.style.removeProperty("--text");
+    root.style.removeProperty("--soft");
+    root.style.removeProperty("--muted");
+    document.body.style.background = `radial-gradient(circle at top, rgba(${r}, ${g}, ${b}, 0.18) 0%, #0d1117 52%)`;
+    if (stripe) stripe.style.background = c;
+    else { stripe = createAccentStripe(c); }
+  }
+}
+
+function createAccentStripe(color) {
+  const stripe = document.createElement("div");
+  stripe.id = "accentStripe";
+  stripe.style.cssText = `position:fixed;top:0;left:0;width:100%;height:5px;background:${color};z-index:9999;pointer-events:none;box-shadow:0 0 12px ${color};`;
+  document.body.appendChild(stripe);
+  return stripe;
 }
 
 function render() {
@@ -1535,8 +1622,22 @@ function renderArtifactGroup(label, text, filename, clearKey) {
 
 function renderRecovery() {
   const pkg = getSelectedPackage();
+  const protectedIds = new Set(currentHeadArtifactIds(state));
+  const archivableCount = manifestArtifactList(state).filter(r =>
+    (r.status === "superseded" || r.status === "orphaned" || r.status === "stale") &&
+    !protectedIds.has(r.artifactId) &&
+    r.relativePath &&
+    !r.relativePath.startsWith("archive/")
+  ).length;
   return `
     <div class="stack">
+      <div class="artifact-item">
+        <div class="artifact-title">Archive old files</div>
+        <div class="artifact-meta">Move superseded, stale, and orphaned artifact files from stage folders into the archive folder. Keeps your workspace clean without deleting anything.</div>
+        <div class="artifact-actions">
+          <button class="ghost-btn" id="archiveStaleBtn" type="button" ${archivableCount ? "" : "disabled"}>${archivableCount ? `Move ${archivableCount} file${archivableCount === 1 ? "" : "s"} to archive` : "Nothing to archive"}</button>
+        </div>
+      </div>
       <div class="artifact-item">
         <div class="artifact-title">Clear or replace saved results</div>
         <div class="artifact-meta">Use this only when a saved artifact is wrong, stale, or from the wrong run.</div>
@@ -1701,8 +1802,7 @@ function renderBackground() {
   `;
 }
 
-function finalizeRender() {
-
-  saveState().catch(err => console.error("Persistence failed", err));
+async function finalizeRender() {
+  await saveState().catch(err => console.error("Persistence failed", err));
   render();
 }

@@ -626,6 +626,61 @@ async function persistArtifactFile(artifactRecord, textContent) {
   }
 }
 
+async function archiveSupersededFiles(targetState) {
+  if (!workspaceRootHandle) return;
+  const manifest = targetState.manifest;
+  if (!manifest || !manifest.artifacts) return;
+  const archiveDir = workspaceSubHandles["archive"];
+  if (!archiveDir) return;
+
+  const archivableStatuses = new Set(["superseded", "orphaned", "stale"]);
+
+  // Safety guard: never archive any artifact that is a current head,
+  // regardless of what reconcileArtifactStatuses computed.
+  // This prevents race conditions from destroying active artifacts.
+  const protectedIds = new Set(currentHeadArtifactIds(targetState));
+
+  for (const record of Object.values(manifest.artifacts)) {
+    if (!archivableStatuses.has(record.status)) continue;
+    if (protectedIds.has(record.artifactId)) continue;
+    if (!record.relativePath) continue;
+    if (record.relativePath.startsWith("archive/")) continue;
+
+    const parts = record.relativePath.split("/");
+    if (parts.length !== 2) continue;
+    const [sourceDir, filename] = parts;
+    const sourceDirHandle = workspaceSubHandles[sourceDir];
+    if (!sourceDirHandle) continue;
+
+    try {
+      // Read from source
+      const fileHandle = await sourceDirHandle.getFileHandle(filename);
+      const file = await fileHandle.getFile();
+      const text = await file.text();
+
+      // Write to archive
+      const archiveFilename = `${sourceDir}__${filename}`;
+      await writeTextFile(archiveDir, archiveFilename, text);
+
+      // Remove original
+      await sourceDirHandle.removeEntry(filename);
+
+      // Update manifest path
+      record.relativePath = `archive/${archiveFilename}`;
+
+      await appendAuditEntry(buildAuditEntry("ARTIFACT_ARCHIVED", {
+        artifactIds: [record.artifactId],
+        paths: [`archive/${archiveFilename}`],
+        message: `Moved ${record.status} artifact from ${sourceDir}/${filename} to archive.`,
+        outcome: "success"
+      }));
+    } catch (e) {
+      // File might already be gone or unreadable — skip silently
+      console.warn(`Archive move failed for ${record.relativePath}:`, e?.message);
+    }
+  }
+}
+
 async function writePromptSnapshot(stageKey, promptText) {
   if (!workspaceRootHandle || !safeText(promptText).trim()) return null;
   try {
@@ -880,6 +935,7 @@ async function saveState(origin = "manually pasted and saved", options = {}) {
     ensureManifestStructure(state);
     reconcileWorkspaceManifest(state, origin);
     await writeNewArtifactFiles(state);
+    await archiveSupersededFiles(state);
     const manifestPersisted = await persistManifest(state.manifest);
     if (!manifestPersisted.success) {
       throw new Error(manifestPersisted.error || "Manifest write failed");

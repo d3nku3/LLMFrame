@@ -493,7 +493,8 @@ function parseReadinessStatus(text) {
 }
 
 function parseProgressionStatus(text) {
-  const match = safeText(text).match(/Progression Status\s*:\s*([A-Z_ -]+)/i);
+  const cleaned = safeText(text).replace(/\*\*/g, "");
+  const match = cleaned.match(/Progression Status\s*:\s*([A-Z_ -]+)/i);
   if (match) {
     const cleaned = match[1].trim().toUpperCase();
     if (cleaned.includes("PAUSE_FOR_DECISIONS")) return "PAUSE_FOR_DECISIONS";
