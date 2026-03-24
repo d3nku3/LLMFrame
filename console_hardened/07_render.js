@@ -135,7 +135,47 @@ function renderWorkspaceIndicator() {
     `<button class="accent-swatch${p.color === currentAccent ? " active" : ""}" data-accent="${p.color}" title="${p.label}" style="background:${p.color};${p.color === "#000000" ? "border:2px solid #555;" : ""}"></button>`
   ).join("");
   parts.push(`<div class="accent-picker">${swatches}</div>`);
+
+  // Domain pack selector
+  parts.push(`<div id="domainPackSlot" style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;"></div>`);
+
   el.innerHTML = parts.join("");
+
+  // Populate domain pack dropdown async
+  if (workspaceSubHandles.prompts) {
+    scanDomainPacks().then(packs => {
+      const slot = document.getElementById("domainPackSlot");
+      if (!slot || !packs.length) {
+        if (slot && !packs.length && state.activeDomainPack) {
+          slot.innerHTML = `<span style="font-size:11px;color:var(--muted);">Pack "${escapeHtml(state.activeDomainPack)}" not found in prompts/</span>`;
+        }
+        return;
+      }
+      const activePack = state.activeDomainPack || "";
+      const options = [`<option value="">— No domain pack —</option>`]
+        .concat(packs.map(p => `<option value="${escapeHtml(p)}"${p === activePack ? " selected" : ""}>${escapeHtml(p)}</option>`))
+        .join("");
+      slot.innerHTML = `<label style="font-size:11px;color:var(--muted);">Pack:</label><select id="domainPackSelect" style="font-size:12px;background:var(--panel,#141a23);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 6px;">${options}</select>`;
+      const select = document.getElementById("domainPackSelect");
+      if (select) {
+        select.addEventListener("change", async () => {
+          const pack = select.value;
+          if (!pack) {
+            await unloadDomainPack();
+            setPersistenceStatus("Domain pack unloaded. Prompts cleared.", "success");
+          } else {
+            const result = await loadDomainPack(pack);
+            if (result.errors.length) {
+              setPersistenceStatus(`Pack "${pack}" loaded with errors: ${result.errors.join("; ")}`, "warn");
+            } else {
+              setPersistenceStatus(`Domain pack "${pack}" loaded — ${result.loaded} prompt(s).`, "success");
+            }
+          }
+          render();
+        });
+      }
+    }).catch(e => console.warn("Domain pack scan failed", e));
+  }
 
   const btn = document.getElementById("switchWorkspaceBtn");
   if (btn) {

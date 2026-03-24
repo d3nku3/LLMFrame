@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipeline Prompt Validator</title>
+<style>
+  :root {
+    --bg: #000; --surface: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.06);
+    --text: #e5e5e5; --muted: #737373; --faint: #525252; --accent: #6ee7b7;
+    --green: #4ade80; --yellow: #fbbf24; --red: #ef4444;
+    --mono: 'Consolas','Courier New',monospace; --sans: -apple-system,'Segoe UI',sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; padding: 32px 24px; }
+  .container { max-width: 860px; margin: 0 auto; }
+  .tag { font: 700 10px/1 var(--mono); text-transform: uppercase; letter-spacing: 3px; color: var(--accent); margin-bottom: 10px; }
+  h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+  .sub { font-size: 12px; color: var(--muted); margin-bottom: 32px; }
+  .drop-zone {
+    border: 2px dashed rgba(255,255,255,0.12); border-radius: 12px; padding: 32px; text-align: center;
+    color: var(--muted); font-size: 14px; cursor: pointer; transition: all 0.2s; margin-bottom: 24px;
+  }
+  .drop-zone:hover, .drop-zone.over { border-color: var(--accent); color: var(--accent); background: rgba(110,231,183,0.04); }
+  .drop-zone input { display: none; }
+  .section { margin-bottom: 28px; }
+  .section-title {
+    font: 700 10px/1 var(--mono); text-transform: uppercase; letter-spacing: 2px; color: var(--accent);
+    border-bottom: 1px solid rgba(110,231,183,0.15); padding-bottom: 6px; margin-bottom: 12px;
+  }
+  .result-card {
+    background: var(--surface); border-radius: 10px; border: 1px solid var(--border);
+    padding: 16px; margin-bottom: 12px;
+  }
+  .result-title { font: 700 14px/1.3 var(--sans); margin-bottom: 8px; }
+  .check-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 13px; }
+  .check-row .icon { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0; }
+  .check-row.pass .icon { color: var(--green); }
+  .check-row.fail .icon { color: var(--red); }
+  .check-row.warn .icon { color: var(--yellow); }
+  .detail { font-size: 11px; color: var(--muted); padding-left: 30px; margin-bottom: 4px; font-family: var(--mono); }
+  .detail.fail { color: var(--red); }
+  .detail.warn { color: var(--yellow); }
+  .verdict-box {
+    background: var(--surface); border-radius: 12px; padding: 20px; margin-top: 24px;
+    border: 2px solid var(--border); text-align: center;
+  }
+  .verdict-box.pass { border-color: var(--green); }
+  .verdict-box.fail { border-color: var(--red); }
+  .verdict-box.warn { border-color: var(--yellow); }
+  .verdict-label { font: 800 24px/1 var(--mono); margin-bottom: 8px; }
+  .verdict-detail { font-size: 13px; color: var(--muted); }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 6px;
+    font: 700 10px/1.4 var(--mono); letter-spacing: 0.5px;
+  }
+  .badge-pass { background: rgba(74,222,128,0.15); color: var(--green); border: 1px solid rgba(74,222,128,0.3); }
+  .badge-fail { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+  .badge-warn { background: rgba(251,191,36,0.15); color: var(--yellow); border: 1px solid rgba(251,191,36,0.3); }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .summary-stat { text-align: center; padding: 12px; background: var(--surface); border-radius: 10px; border: 1px solid var(--border); }
+  .summary-stat .num { font: 800 22px/1 var(--mono); }
+  .summary-stat .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+  #output { display: none; }
+  #output.visible { display: block; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="tag">Pipeline Prompt Validator</div>
+  <h1>Deterministic Prompt Audit</h1>
+  <div class="sub">Drop the 6 compiled prompt files (01_*.txt through 06_*.txt) to validate structural completeness and Console compatibility.</div>
+
+  <div class="drop-zone" id="dropZone">
+    <strong>Drop 6 prompt files here</strong> — or click to browse
+    <input type="file" id="fileInput" multiple accept=".txt">
+  </div>
+
+  <div id="output"></div>
+</div>
+
+<script>
+const STAGE_MAP = { "01": "stage1", "02": "stage2", "03": "stage3", "04": "stage4", "05": "stage5", "06": "stage6" };
+
+// ── Check Definitions ──
+
+const FROZEN_TOKENS_ALL = ["Master Briefing", "Architecture Spec"];
+
+const FROZEN_TOKENS_PER_STAGE = {
+  stage1: [],
+  stage2: ["Progression Status: CLOSED", "Progression Status: PAUSE_FOR_DECISIONS"],
+  stage3: [
+    "Progression Status: CLOSED", "Progression Status: PAUSE_FOR_DECISIONS",
+    "Master Orchestration File", "Work Package File", "Execution Checklist",
+    "_Work_Package.txt", "_Master_Orchestration.txt", "_Execution_Checklist.txt",
+    "Package ID:", "Objective:", "Depends On", "Filename:",
+    "Formal Package Contract", "Operator Header", "Boundary Test Minimum",
+    "Definition of Done", "Not-Done-If", "Delivery Report",
+    "Gate Result", "Blocking Contract-Critical Decisions",
+    "Minimal Decision Questionnaire", "Resume Instruction"
+  ],
+  stage4: ["Delivery Report", "Boundary Test Minimum", "Definition of Done", "Not-Done-If"],
+  stage5: [
+    "FINAL_DISPOSITION: ACCEPT", "FINAL_DISPOSITION: REWORK",
+    "REVIEW_BINDING_TOKEN:", "Merge-Blocking: YES", "Merge-Blocking: NO",
+    "Delivery Report", "Boundary Test Minimum", "CRITICAL", "MAJOR", "MINOR", "NOTE"
+  ],
+  stage6: [
+    "FINAL_DISPOSITION: ACCEPT", "REVIEW_BINDING_TOKEN",
+    "CLEAN MERGE", "MERGED WITH FIXES", "Delivery Report"
+  ]
+};
+
+const REQUIRED_SECTIONS_PER_STAGE = {
+  stage1: ["Role", "Interview", "Master Briefing", "Complexity Assessment", "Safety Assessment", "Initial Greeting"],
+  stage2: ["Role", "Component Inventory", "Shared Definitions", "Boundary Contracts", "Invariants", "Error", "Dependency Map", "Architecture Readiness", "Decision Closure", "Progression Status", "Initial Greeting"],
+  stage3: ["Role", "Contract Closure Gate", "Phase 0", "Phase 1", "Phase 2", "Operator Header", "Formal Package Contract", "Delivery Report", "Repair Prompt", "Artifact Ledger", "Initial Greeting"],
+  stage4: ["Role", "Scope", "Input Contract", "Output Contract", "Delivery Report", "Validation", "Escalation", "Quality Gate", "Self-Check", "Initial Greeting"],
+  stage5: ["Role", "REVIEW_BINDING_TOKEN", "Contract Compliance", "Architecture Compliance", "Boundary Verification", "Delivery Report", "Finding", "Severity", "Verdict", "FINAL_DISPOSITION", "Initial Greeting"],
+  stage6: ["Role", "FINAL_DISPOSITION: ACCEPT", "Dependency", "Conflict", "Boundary Validation", "Integration Report", "Integration Manifest", "Escalation", "Initial Greeting"]
+};
+
+const CONTRACT_ID_PREFIXES = {
+  stage1: ["FACT-", "DEC-", "DONE-", "SCOPE-"],
+  stage2: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-"],
+  stage3: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-", "FACT-", "DEC-", "DONE-"],
+  stage4: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-", "FACT-"],
+  stage5: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-", "FACT-"],
+  stage6: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-"]
+};
+
+// ── Validator ──
+
+function validatePrompt(stageKey, text, filename) {
+  const results = [];
+
+  // 1. Frozen tokens
+  const requiredTokens = [...FROZEN_TOKENS_ALL, ...(FROZEN_TOKENS_PER_STAGE[stageKey] || [])];
+  const missingTokens = requiredTokens.filter(token => !text.includes(token));
+  results.push({
+    check: "Frozen Tokens",
+    pass: missingTokens.length === 0,
+    severity: missingTokens.length > 0 ? "fail" : "pass",
+    detail: missingTokens.length ? `Missing: ${missingTokens.join(", ")}` : `All ${requiredTokens.length} tokens present`
+  });
+
+  // 2. Residual domain markers
+  const domainMarkers = (text.match(/\[DOMAIN:/g) || []);
+  results.push({
+    check: "Residual [DOMAIN:] Markers",
+    pass: domainMarkers.length === 0,
+    severity: domainMarkers.length > 0 ? "fail" : "pass",
+    detail: domainMarkers.length ? `${domainMarkers.length} unfilled markers found` : "No residual markers"
+  });
+
+  // 3. Required sections (fuzzy search - case insensitive)
+  const sections = REQUIRED_SECTIONS_PER_STAGE[stageKey] || [];
+  const missingSections = sections.filter(sec => {
+    const lower = text.toLowerCase();
+    const secLower = sec.toLowerCase();
+    return !lower.includes(secLower);
+  });
+  results.push({
+    check: "Required Sections",
+    pass: missingSections.length === 0,
+    severity: missingSections.length > 0 ? "fail" : "pass",
+    detail: missingSections.length ? `Missing: ${missingSections.join(", ")}` : `All ${sections.length} sections present`
+  });
+
+  // 4. Contract ID prefixes
+  const prefixes = CONTRACT_ID_PREFIXES[stageKey] || [];
+  const missingPrefixes = prefixes.filter(prefix => !text.includes(prefix));
+  results.push({
+    check: "Contract ID Prefixes",
+    pass: missingPrefixes.length === 0,
+    severity: missingPrefixes.length > 0 ? "warn" : "pass",
+    detail: missingPrefixes.length ? `Missing: ${missingPrefixes.join(", ")}` : `All ${prefixes.length} prefixes present`
+  });
+
+  // 5. Escalation rule (stages 03-06)
+  if (["stage3", "stage4", "stage5", "stage6"].includes(stageKey)) {
+    const hasEscalation = /escalat/i.test(text) && (/architect/i.test(text) || /upstream/i.test(text));
+    results.push({
+      check: "Escalation Rule",
+      pass: hasEscalation,
+      severity: hasEscalation ? "pass" : "fail",
+      detail: hasEscalation ? "Escalation rule present" : "No escalation rule found referencing architect or upstream routing"
+    });
+  }
+
+  // 6. Initial greeting
+  const hasGreeting = text.includes("DO_NOT_BREAK");
+  const hasGreetingSentence = /When the conversation begins/i.test(text);
+  results.push({
+    check: "Initial Greeting",
+    pass: hasGreeting && hasGreetingSentence,
+    severity: (hasGreeting && hasGreetingSentence) ? "pass" : hasGreetingSentence ? "warn" : "fail",
+    detail: !hasGreetingSentence ? "No greeting sentence found" : !hasGreeting ? "Greeting exists but missing DO_NOT_BREAK tag" : "Greeting present with DO_NOT_BREAK tag"
+  });
+
+  // 7. OUTPUT_CONTRACT tag
+  const hasOutputContract = text.includes("<OUTPUT_CONTRACT>");
+  results.push({
+    check: "OUTPUT_CONTRACT Tag",
+    pass: hasOutputContract,
+    severity: hasOutputContract ? "pass" : "warn",
+    detail: hasOutputContract ? "OUTPUT_CONTRACT block present" : "No OUTPUT_CONTRACT block found"
+  });
+
+  // 8. Minimum length check
+  const charCount = text.length;
+  const tooShort = charCount < 1500;
+  results.push({
+    check: "Minimum Length",
+    pass: !tooShort,
+    severity: tooShort ? "warn" : "pass",
+    detail: `${charCount.toLocaleString()} characters${tooShort ? " — suspiciously short for a pipeline prompt" : ""}`
+  });
+
+  // 9. Stage-specific checks
+  if (stageKey === "stage05" || stageKey === "stage5") {
+    const hasFinalDispoLast = /FINAL_DISPOSITION[^]*?$/i.test(text.slice(-500));
+    results.push({
+      check: "FINAL_DISPOSITION Position",
+      pass: hasFinalDispoLast,
+      severity: hasFinalDispoLast ? "pass" : "warn",
+      detail: hasFinalDispoLast ? "FINAL_DISPOSITION appears near end of prompt" : "FINAL_DISPOSITION may not be positioned as the last section"
+    });
+  }
+
+  if (stageKey === "stage3") {
+    const hasMermaid = /mermaid/i.test(text);
+    results.push({
+      check: "Dependency Graph Format",
+      pass: hasMermaid,
+      severity: hasMermaid ? "pass" : "warn",
+      detail: hasMermaid ? "Mermaid graph syntax referenced" : "No Mermaid graph reference found — dependency visualization may be missing"
+    });
+  }
+
+  return results;
+}
+
+function crossPromptChecks(files) {
+  const results = [];
+  const allTexts = Object.values(files);
+
+  // Check consistent deliverable terminology across prompts
+  // Extract the most common domain-specific noun after "deliverable" or in role titles
+  const stage4 = files.stage4 || "";
+  const stage5 = files.stage5 || "";
+  const stage6 = files.stage6 || "";
+
+  // Check that Stage 05 references the same Delivery Report structure as Stage 04
+  if (stage4 && stage5) {
+    const s4HasDR = stage4.includes("Delivery Report");
+    const s5HasDR = stage5.includes("Delivery Report");
+    results.push({
+      check: "Delivery Report Consistency (04↔05)",
+      pass: s4HasDR && s5HasDR,
+      severity: (s4HasDR && s5HasDR) ? "pass" : "fail",
+      detail: (s4HasDR && s5HasDR) ? "Both Stage 04 and 05 reference Delivery Report" : "Delivery Report reference missing in one stage"
+    });
+  }
+
+  // Check that Stage 06 requires FINAL_DISPOSITION: ACCEPT from Stage 05
+  if (stage5 && stage6) {
+    const s5HasFD = stage5.includes("FINAL_DISPOSITION: ACCEPT");
+    const s6HasFD = stage6.includes("FINAL_DISPOSITION: ACCEPT");
+    results.push({
+      check: "FINAL_DISPOSITION Chain (05→06)",
+      pass: s5HasFD && s6HasFD,
+      severity: (s5HasFD && s6HasFD) ? "pass" : "fail",
+      detail: (s5HasFD && s6HasFD) ? "ACCEPT chain intact from review to integration" : "FINAL_DISPOSITION: ACCEPT reference broken between stages"
+    });
+  }
+
+  // Check REVIEW_BINDING_TOKEN in both 05 and 06
+  if (stage5 && stage6) {
+    const s5HasRBT = stage5.includes("REVIEW_BINDING_TOKEN");
+    const s6HasRBT = stage6.includes("REVIEW_BINDING_TOKEN");
+    results.push({
+      check: "Binding Token Chain (05→06)",
+      pass: s5HasRBT && s6HasRBT,
+      severity: (s5HasRBT && s6HasRBT) ? "pass" : "fail",
+      detail: (s5HasRBT && s6HasRBT) ? "REVIEW_BINDING_TOKEN referenced in both review and integration" : "Binding token reference missing in one stage"
+    });
+  }
+
+  // Check all prompts reference Architecture Spec
+  const allHaveArchSpec = allTexts.every(t => t.includes("Architecture Spec"));
+  results.push({
+    check: "Architecture Spec Reference (all stages)",
+    pass: allHaveArchSpec,
+    severity: allHaveArchSpec ? "pass" : "warn",
+    detail: allHaveArchSpec ? "All prompts reference Architecture Spec" : "Some prompts missing Architecture Spec reference"
+  });
+
+  return results;
+}
+
+// ── UI ──
+
+function renderResults(files) {
+  const output = document.getElementById("output");
+  let totalPass = 0, totalFail = 0, totalWarn = 0;
+  let html = "";
+  let md = "# Pipeline Prompt Validation Report\n\nGenerated: " + new Date().toISOString() + "\n\n";
+
+  // Per-prompt reports
+  const stageLabels = {
+    stage1: "Stage 01 — Requirements Engineer",
+    stage2: "Stage 02 — Technical Architect",
+    stage3: "Stage 03 — Project Orchestrator",
+    stage4: "Stage 04 — Deliverable Author",
+    stage5: "Stage 05 — Deliverable Reviewer",
+    stage6: "Stage 06 — Integration Coordinator"
+  };
+
+  for (const [stageKey, label] of Object.entries(stageLabels)) {
+    const text = files[stageKey];
+    if (!text) {
+      html += `<div class="result-card"><div class="result-title">${label}</div><div class="check-row fail"><span class="icon">✗</span> File not provided</div></div>`;
+      md += `## ${label}\n\n✗ FAIL — File not provided\n\n`;
+      totalFail++;
+      continue;
+    }
+
+    const results = validatePrompt(stageKey, text, "");
+    html += `<div class="result-card"><div class="result-title">${label}</div>`;
+    md += `## ${label}\n\n`;
+    md += `| Check | Result | Detail |\n|---|---|---|\n`;
+    for (const r of results) {
+      const cls = r.severity;
+      const icon = cls === "pass" ? "✓" : cls === "fail" ? "✗" : "⚠";
+      const mdIcon = cls === "pass" ? "✓ PASS" : cls === "fail" ? "✗ FAIL" : "⚠ WARN";
+      html += `<div class="check-row ${cls}"><span class="icon">${icon}</span> ${r.check}</div>`;
+      if (r.detail) html += `<div class="detail ${cls}">${r.detail}</div>`;
+      md += `| ${r.check} | ${mdIcon} | ${r.detail || "—"} |\n`;
+      if (cls === "pass") totalPass++;
+      else if (cls === "fail") totalFail++;
+      else totalWarn++;
+    }
+    html += `</div>`;
+    md += "\n";
+  }
+
+  // Cross-prompt
+  const crossResults = crossPromptChecks(files);
+  if (crossResults.length) {
+    html += `<div class="section"><div class="section-title">Cross-Prompt Consistency</div>`;
+    html += `<div class="result-card">`;
+    md += `## Cross-Prompt Consistency\n\n| Check | Result | Detail |\n|---|---|---|\n`;
+    for (const r of crossResults) {
+      const cls = r.severity;
+      const icon = cls === "pass" ? "✓" : cls === "fail" ? "✗" : "⚠";
+      const mdIcon = cls === "pass" ? "✓ PASS" : cls === "fail" ? "✗ FAIL" : "⚠ WARN";
+      html += `<div class="check-row ${cls}"><span class="icon">${icon}</span> ${r.check}</div>`;
+      if (r.detail) html += `<div class="detail ${cls}">${r.detail}</div>`;
+      md += `| ${r.check} | ${mdIcon} | ${r.detail || "—"} |\n`;
+      if (cls === "pass") totalPass++;
+      else if (cls === "fail") totalFail++;
+      else totalWarn++;
+    }
+    html += `</div></div>`;
+    md += "\n";
+  }
+
+  // Summary
+  const total = totalPass + totalFail + totalWarn;
+  const verdict = totalFail > 0 ? "FAIL" : totalWarn > 0 ? "PASS WITH WARNINGS" : "PASS";
+  const verdictClass = totalFail > 0 ? "fail" : totalWarn > 0 ? "warn" : "pass";
+  const verdictColor = totalFail > 0 ? "var(--red)" : totalWarn > 0 ? "var(--yellow)" : "var(--green)";
+
+  md = `# Pipeline Prompt Validation Report\n\nGenerated: ${new Date().toISOString()}\n\n` +
+    `## Verdict: ${verdict}\n\n` +
+    `| Metric | Count |\n|---|---|\n` +
+    `| Total checks | ${total} |\n` +
+    `| Passed | ${totalPass} |\n` +
+    `| Failed | ${totalFail} |\n` +
+    `| Warnings | ${totalWarn} |\n\n` +
+    md.split("\n").slice(3).join("\n");
+
+  // Store for export
+  window.__lastReport = { md, verdict, total, totalPass, totalFail, totalWarn };
+
+  const summaryHtml = `
+    <div class="section"><div class="section-title">Summary</div>
+      <div class="summary-grid">
+        <div class="summary-stat"><div class="num" style="color:var(--text)">${total}</div><div class="label">Total Checks</div></div>
+        <div class="summary-stat"><div class="num" style="color:var(--green)">${totalPass}</div><div class="label">Passed</div></div>
+        <div class="summary-stat"><div class="num" style="color:var(--red)">${totalFail}</div><div class="label">Failed</div></div>
+        <div class="summary-stat"><div class="num" style="color:var(--yellow)">${totalWarn}</div><div class="label">Warnings</div></div>
+      </div>
+      <div class="verdict-box ${verdictClass}">
+        <div class="verdict-label" style="color:${verdictColor}">${verdict}</div>
+        <div class="verdict-detail">${
+          totalFail > 0 ? "Fix all FAIL items before using these prompts. The Console will malfunction or produce unusable output." :
+          totalWarn > 0 ? "Prompts are functional but could be improved. Review warnings for quality." :
+          "All checks passed. Prompts are ready for production use with the Operator Console."
+        }</div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
+        <button id="exportMd" style="background:var(--accent);color:#000;border:none;border-radius:8px;padding:8px 16px;font:700 12px/1 var(--mono);cursor:pointer">📄 Download Report (.md)</button>
+        <button id="exportJson" style="background:#93c5fd;color:#000;border:none;border-radius:8px;padding:8px 16px;font:700 12px/1 var(--mono);cursor:pointer">📋 Download Report (.json)</button>
+      </div>
+    </div>`;
+
+  output.innerHTML = summaryHtml + `<div class="section"><div class="section-title">Per-Prompt Results</div>${html}</div>`;
+  output.classList.add("visible");
+
+  // Bind export buttons
+  document.getElementById("exportMd").addEventListener("click", () => {
+    const a = document.createElement("a");
+    a.href = "data:text/markdown;charset=utf-8," + encodeURIComponent(window.__lastReport.md);
+    a.download = "prompt_validation_report.md";
+    a.click();
+  });
+
+  document.getElementById("exportJson").addEventListener("click", () => {
+    // Rebuild structured JSON from last run
+    const json = { generated: new Date().toISOString(), verdict: window.__lastReport.verdict, totals: { total: window.__lastReport.total, passed: window.__lastReport.totalPass, failed: window.__lastReport.totalFail, warnings: window.__lastReport.totalWarn }, stages: {}, crossPrompt: [] };
+    for (const [stageKey, label] of Object.entries(stageLabels)) {
+      if (!files[stageKey]) { json.stages[stageKey] = { label, status: "missing" }; continue; }
+      json.stages[stageKey] = { label, checks: validatePrompt(stageKey, files[stageKey], "") };
+    }
+    json.crossPrompt = crossPromptChecks(files);
+    const a = document.createElement("a");
+    a.href = "data:application/json;charset=utf-8," + encodeURIComponent(JSON.stringify(json, null, 2));
+    a.download = "prompt_validation_report.json";
+    a.click();
+  });
+}
+
+// ── File Handling ──
+
+function processFiles(fileList) {
+  const files = {};
+  const readers = Array.from(fileList).map(file => new Promise(resolve => {
+    const match = file.name.match(/^(0[1-6])[_\s\-]/);
+    if (!match || !/\.txt$/i.test(file.name)) { resolve(); return; }
+    const stageKey = STAGE_MAP[match[1]];
+    const reader = new FileReader();
+    reader.onload = () => { files[stageKey] = reader.result; resolve(); };
+    reader.readAsText(file);
+  }));
+  Promise.all(readers).then(() => {
+    const count = Object.keys(files).length;
+    if (count === 0) { alert("No valid prompt files found. Files must be .txt and start with 01_ through 06_."); return; }
+    renderResults(files);
+  });
+}
+
+// ── Events ──
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileInput");
+dropZone.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", e => processFiles(e.target.files));
+dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("over"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("over"));
+dropZone.addEventListener("drop", e => { e.preventDefault(); dropZone.classList.remove("over"); processFiles(e.dataTransfer.files); });
+</script>
+</body>
+</html>

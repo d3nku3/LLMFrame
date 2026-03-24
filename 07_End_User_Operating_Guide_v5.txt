@@ -67,7 +67,13 @@ It:
 - maintains the manifest automatically,
 - writes workspace state and audit trail automatically,
 - tracks artifact status automatically,
-- and enforces stage progression through the state machine.
+- enforces stage progression through the state machine,
+- reconnects to a previously used workspace after browser reload,
+- supports multiple workspaces in parallel across browser tabs,
+- offers per-workspace accent colors for visual project distinction,
+- shows post-action impact summaries after important saves,
+- shows consequence previews before destructive actions,
+- and shows a resume summary on workspace reconnect.
 
 Simple split:
 - Use 07 to understand the rules.
@@ -872,7 +878,7 @@ The Console creates and maintains the workspace folder structure automatically:
 - _console/ — manifest, state, audit log, prompt snapshots
 - stage01/ through stage06/ — artifacts per stage
 - references/ — imported reference files
-- archive/ — archived states from workspace resets
+- archive/ — superseded, stale, and orphaned artifact files moved from stage folders
 
 Artifact filenames are generated deterministically by the Console.
 Example pattern:
@@ -1133,9 +1139,17 @@ Problem:
 A workspace reload shows missing files or inconsistent state.
 
 What to do:
-Use the Console's workspace integrity check.
-If files are missing on disk, treat that as an operational problem first.
+The Console automatically reconnects to the previous workspace on reload. If the browser requires permission, click the Reconnect button.
+If files are missing on disk, the Console marks affected artifacts as missing_on_disk in the manifest.
+Use the Console's workspace integrity check to identify which artifacts are affected.
 Do not continue until you understand which artifacts are still authoritative.
+
+Problem:
+The Console shows the wrong workspace after a browser reload.
+
+What to do:
+Each browser tab remembers its own workspace. If you switched workspaces in another tab, this tab still reconnects to its own.
+If the wrong workspace loads, use Switch Project to select the correct folder.
 
 Problem:
 Everything keeps failing because outputs are inconsistent.
@@ -1154,6 +1168,7 @@ Pipeline mistakes are often caused by stale artifacts, not by model failure.
 ======================================================================
 
 - Work one package at a time.
+- To work on multiple packages in parallel, use the Switch Package button to queue requests for different packages before collecting results.
 - Do not skip review.
 - Do not ask merge to rescue bad packages.
 - Do not let implementers invent architecture.
@@ -1164,6 +1179,8 @@ Pipeline mistakes are often caused by stale artifacts, not by model failure.
 - Let the Console handle all file management. Focus on content quality and routing decisions.
 - If the Console blocks a transition, understand why before working around it.
 - When in doubt, go back upstream instead of forcing a local fix.
+- When running multiple projects in parallel, assign a different accent color to each workspace.
+- Optionally, run a git watch script alongside the Console for automatic workspace versioning and undo capability.
 
 ======================================================================
 15. MINIMUM SAFE WORKFLOW
@@ -1232,6 +1249,33 @@ The 07 / 08 / 09 split remains the same in later phases:
 - 07 explains the workflow and control logic.
 - 08 helps with execution decisions.
 - 09 manages persistence, artifact tracking, state, and file organization.
+
+======================================================================
+16b. RUNNING MULTIPLE PROJECTS IN PARALLEL
+======================================================================
+
+The Console supports parallel pipelines.
+
+Two approaches:
+
+Using the same browser:
+Open two Console tabs. Each tab remembers its own workspace via session storage.
+Select a different workspace folder in each tab. Each tab operates independently.
+Assign a different accent color to each workspace (color swatches are in the top bar).
+Limitation: two workspaces with identical folder names in the same browser will collide. Use distinct folder names.
+
+Using different browsers:
+Open the Console in two separate browsers (e.g., Chrome and Edge).
+Each browser has completely independent storage.
+This is the safest approach for full isolation.
+
+Important:
+Do not open the same workspace folder in two tabs simultaneously.
+Both tabs would write to the same state file, and the last save wins.
+One workspace = one active tab at a time.
+
+To work on multiple packages within the same workspace:
+Use the Switch Package button to queue requests for different packages, then collect and save results one at a time.
 
 ======================================================================
 17. FINAL REMINDER

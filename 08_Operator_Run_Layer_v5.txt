@@ -44,8 +44,10 @@ Run every step through the same short loop:
 2. DECIDE   -> evaluate whether the input quality is good enough to proceed
 3. ACT      -> paste into the LLM, or click the Console action button
 4. EVALUATE -> when the result comes back, judge its quality before saving
-5. SAVE     -> Click Save in the Console (it handles disk write, manifest, audit)
-6. STOP     -> if any stop condition is true, do not push forward
+5. PREVIEW  -> if the Console shows a consequence preview, read it before clicking Save
+6. SAVE     -> Click Save in the Console (it handles disk write, manifest, audit)
+7. CONFIRM  -> read the post-action summary the Console shows after saving
+8. STOP     -> if any stop condition is true, do not push forward
 
 ONE-ACTIVE-CARD RULE
 Only work from one stage card at a time.
@@ -62,6 +64,11 @@ If you are unsure whether the LLM output is correct, complete, or contract-align
 VERSION RULE
 If the Console shows a conflict or warning about artifact freshness, stop and investigate before proceeding.
 The Console tracks versions automatically, but you must still judge whether a revision invalidates downstream work that the Console cannot assess for content quality.
+
+RESUME RULE
+After a browser reload or reconnect, the Console shows a resume summary with the current workspace state.
+Read it before continuing. It tells you which stage you are in, which packages are accepted, and what the next action is.
+Do not assume you remember the exact state from before the interruption.
 
 ==============================================================================
 2. GLOBAL DEFAULTS
@@ -85,6 +92,11 @@ DEFAULT ROUTING RULE
 LLM AVAILABILITY NOTE
 The Console requires workspace and prompt folder selection before Stage 01.
 It also requires at least one Tier 1 and one Tier 2 LLM slot before proceeding.
+
+PARALLEL WORK NOTE
+Use the Switch Package button to queue implementation or review requests for multiple packages before collecting results.
+This does not require multiple tabs — it works within a single Console session.
+For multiple projects, use separate browser tabs with different workspace folders and distinct accent colors.
 
 ==============================================================================
 3. 10-SECOND PRE-FLIGHT
@@ -135,6 +147,9 @@ Architecture Spec CLOSED but restricted     Run only allowed areas / packages
 missing FINAL_DISPOSITION block            Stop Stage 05 routing; review is not operationally complete
 output/review revision mismatch            Stop merge; exact output/review pair is required
 missing T1/T2 LLM baseline in 09           Stop Stage 01 prep in the console until LLM Availability is set
+"Reconnect workspace" shown after reload    Click Reconnect to restore the previous workspace session
+consequence preview shows stale review      Proceed only if you intend to re-review after saving
+post-action summary shows "stale"           Check whether downstream work needs re-validation
 
 ==============================================================================
 6. STAGE CARDS
@@ -673,6 +688,28 @@ The operator's file hygiene responsibility is limited to:
 - verifying that the prompt folder contains the correct prompt files
 - not manually modifying files in the workspace folder outside the Console
 - using the Console's file import feature for LLM-generated files instead of manual copying
+
+Workspace resume:
+After a browser reload, the Console reconnects to the previous workspace automatically.
+If the browser requires a user gesture for file access permission, the Console shows a Reconnect button instead.
+Click it once to restore the full session.
+
+Multi-workspace operation:
+Each browser tab remembers its own workspace.
+Two tabs in the same browser can work with different project folders simultaneously.
+Assign a different accent color per workspace (swatches in the top bar) to avoid confusion.
+Do not open the same workspace folder in two tabs — both would write to the same state file.
+
+Optional git companion:
+A git watch script can run alongside the Console to auto-commit every workspace change.
+This provides an automatic undo tree without changing the Console workflow.
+Setup: run `git init` in the workspace folder, then start the watch script.
+Recovery: use `git log` to find a good state and `git checkout <hash> -- .` to restore it.
+
+Archive management:
+Superseded and stale artifact files are moved to the archive/ folder automatically.
+The manual "Archive old files" button in the Recovery section can also be used to trigger archiving on demand.
+Archived files are not deleted — they remain available for inspection.
 
 ==============================================================================
 11. FINAL REMINDER

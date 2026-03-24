@@ -12,7 +12,7 @@ let promptFolderHandle = null;
 const IDB_PROMPT_HANDLE_KEY = "lastPromptFolder";
 const WORKSPACE_DIRS = [
   "_console", "stage01", "stage02", "stage03",
-  "stage04", "stage05", "stage06", "references", "archive"
+  "stage04", "stage05", "stage06", "references", "archive", "prompts"
 ];
 const CONSOLE_DIR = "_console";
 const STATE_FILE = "workspace_state.json";

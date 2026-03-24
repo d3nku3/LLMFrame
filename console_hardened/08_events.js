@@ -1,6 +1,61 @@
 // 08_events.js — Operator actions, imports/exports, dynamic bindings, and event handlers
 // Wires UI events to workflow mutations and persistence calls.
 
+// ── Domain Pack Management ──
+
+async function scanDomainPacks() {
+  if (!workspaceSubHandles.prompts) return [];
+  const packs = [];
+  try {
+    for await (const [name, handle] of workspaceSubHandles.prompts.entries()) {
+      if (handle.kind !== "directory") continue;
+      let hasPrompt = false;
+      try {
+        for await (const [childName] of handle.entries()) {
+          if (/^0[1-6][_\s\-]/.test(childName) && childName.endsWith(".txt")) { hasPrompt = true; break; }
+        }
+      } catch(e) {}
+      if (hasPrompt) packs.push(name);
+    }
+  } catch(e) { console.warn("Domain pack scan failed", e); }
+  return packs.sort();
+}
+
+async function loadDomainPack(packName) {
+  if (!workspaceSubHandles.prompts || !packName) return { loaded: 0, errors: [] };
+  let packDir;
+  try {
+    packDir = await workspaceSubHandles.prompts.getDirectoryHandle(packName);
+  } catch(e) {
+    return { loaded: 0, errors: [`Pack directory "${packName}" not found.`] };
+  }
+  const loaded = [];
+  const errors = [];
+  try {
+    for await (const [name, handle] of packDir.entries()) {
+      if (handle.kind !== "file") continue;
+      if (!/^0[1-6][_\s\-]/.test(name) || !name.endsWith(".txt")) continue;
+      try {
+        const file = await handle.getFile();
+        const text = await file.text();
+        if (text.trim()) loaded.push({ name, text: text.trim(), sourceMode: "domain-pack" });
+      } catch(e) { errors.push(`Failed to read ${name}: ${e.message}`); }
+    }
+  } catch(e) { errors.push(`Failed to iterate pack: ${e.message}`); }
+  // Clear existing prompt reference files and replace with pack contents
+  state.referenceFiles = (state.referenceFiles || []).filter(f => !isPromptReferenceFile(f));
+  loaded.forEach(item => upsertReferenceFile(item));
+  state.activeDomainPack = packName;
+  await saveState("domain pack loaded: " + packName).catch(e => console.warn("Persistence failed", e));
+  return { loaded: loaded.length, errors };
+}
+
+async function unloadDomainPack() {
+  state.referenceFiles = (state.referenceFiles || []).filter(f => !isPromptReferenceFile(f));
+  state.activeDomainPack = "";
+  await saveState("domain pack unloaded").catch(e => console.warn("Persistence failed", e));
+}
+
 
 const debouncedKeystrokeSave = debounce((origin) => {
   saveState(origin, { audit: false }).catch(err => console.error("Persistence failed", err));
@@ -1504,12 +1559,26 @@ async function openAnalyticsDashboard() {
 }
 
 function analyticsTemplate(dataJson) {
+  const hardened = typeof window.__CHARTJS_INLINE === "string";
+  const chartjsTag = hardened
+    ? `<script>/* Chart.js 4.4.1 - bundled offline */\n${window.__CHARTJS_INLINE}<\/script>`
+    : `<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>`;
+  const fontTag = hardened
+    ? `<!-- Hardened: no external font loading. System fonts used. -->`
+    : `<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">`;
+  const cspTag = hardened
+    ? `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:;">`
+    : ``;
+  const fontFallback = hardened
+    ? `--mono:'Consolas','Courier New',monospace;--sans:-apple-system,'Segoe UI',sans-serif`
+    : `--mono:'JetBrains Mono',monospace;--sans:'IBM Plex Sans',-apple-system,sans-serif`;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pipeline Analytics</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>
+${cspTag}
+<title>Pipeline Analytics${hardened ? " [HARDENED]" : ""}</title>
+${fontTag}
+${chartjsTag}
 <style>
-:root{--bg:#000;--surface:rgba(255,255,255,0.03);--border:rgba(255,255,255,0.06);--text:#e5e5e5;--muted:#737373;--faint:#525252;--ghost:#374151;--accent:#6ee7b7;--green:#4ade80;--yellow:#fbbf24;--red:#ef4444;--mono:'JetBrains Mono',monospace;--sans:'IBM Plex Sans',-apple-system,sans-serif}
+:root{--bg:#000;--surface:rgba(255,255,255,0.03);--border:rgba(255,255,255,0.06);--text:#e5e5e5;--muted:#737373;--faint:#525252;--ghost:#374151;--accent:#6ee7b7;--green:#4ade80;--yellow:#fbbf24;--red:#ef4444;${fontFallback}}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh}
 .c{max-width:980px;margin:0 auto;padding:36px 24px 60px}
 .tag{font:700 10px/1 var(--mono);text-transform:uppercase;letter-spacing:3px;color:var(--accent);margin-bottom:10px}
@@ -1559,6 +1628,11 @@ h1{font-size:26px;font-weight:700}.sub{font:400 12px/1 var(--mono);color:var(--m
 <div class="sec"><div class="st">Activity Timeline</div><div class="tl" id="tL"></div></div>
 <div class="ft">Multi-LLM Pipeline v5 · Operator Console Analytics</div>
 </div>
+<div style="position:fixed;bottom:20px;right:20px;display:flex;gap:8px;z-index:100">
+<button id="xPng" style="background:#6ee7b7;color:#000;border:none;border-radius:10px;padding:10px 16px;font:700 12px/1 var(--mono);cursor:pointer;box-shadow:0 4px 16px rgba(110,231,183,0.3);transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">${hardened ? "🖨️ Print/PDF" : "📷 PNG"}</button>
+<button id="xHtml" style="background:#93c5fd;color:#000;border:none;border-radius:10px;padding:10px 16px;font:700 12px/1 var(--mono);cursor:pointer;box-shadow:0 4px 16px rgba(147,197,253,0.3);transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">💾 HTML</button>
+</div>
+<style>@media print{[style*="position:fixed"]{display:none!important}body{background:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
 <script>
 const DATA=${dataJson};
 const esc=s=>{const d=document.createElement("div");d.textContent=s;return d.innerHTML};
@@ -1577,6 +1651,11 @@ function rD(){const p=document.getElementById("dP"),pkg=DATA.packages.find(x=>x.
 function rT(){document.getElementById("tB").innerHTML=DATA.packages.map(p=>{const sb=p.blocked?'<span class="badge br">Blocked</span>':p.status==="Complete"?'<span class="badge bg">Complete</span>':p.status==="Partial"?'<span class="badge by">Partial</span>':'<span class="badge bx">—</span>';const db=p.disposition==="ACCEPT"?'<span class="badge bg">ACCEPT</span>':p.disposition==="REWORK"?'<span class="badge by">REWORK</span>':'<span class="badge bx">—</span>';return'<div class="tr'+(sel===p.id?" sel":"")+'" data-p="'+esc(p.id)+'"><span class="ri"'+(p.blocked?' style="color:var(--red)"':"")+">"+esc(p.id)+"</span><span>"+sb+'</span><span style="text-align:right">'+db+'</span><span class="rr">'+(p.rev>0?"r"+p.rev:"—")+'</span><span class="rr">'+(p.files.length?p.files.length+" file"+(p.files.length>1?"s":""):"—")+"</span></div>"}).join("");document.querySelectorAll(".tr").forEach(r=>r.addEventListener("click",()=>{sel=sel===r.dataset.p?null:r.dataset.p;rP();rD();rT()}))}
 function rTL(){document.getElementById("tL").innerHTML=DATA.timeline.map(t=>'<div class="ti"><div class="td" style="background:'+sc(t.stage)+";box-shadow:0 0 6px "+sc(t.stage)+'44"></div><span class="tt">'+esc(t.time.slice(0,16))+'</span><span class="te'+(t.event.includes("BLOCKED")?" bl":"")+'">'+esc(t.event)+"</span></div>").join("")}
 rH();rS();rG();rP();rD();rT();rA();rTL();
+document.getElementById("xPng").addEventListener("click",async()=>{${hardened
+  ? `window.print();`
+  : `const{default:h2c}=await import("https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm");const el=document.getElementById("d");const c=await h2c(el,{backgroundColor:"#000",scale:2,useCORS:true});const a=document.createElement("a");a.href=c.toDataURL("image/png");a.download="pipeline_analytics_"+(DATA.project.name||"project").replace(/\\\\s+/g,"_")+".png";a.click();`
+}});
+document.getElementById("xHtml").addEventListener("click",()=>{const a=document.createElement("a");a.href="data:text/html;charset=utf-8,"+encodeURIComponent(document.documentElement.outerHTML);a.download="pipeline_analytics_"+(DATA.project.name||"project").replace(/\\s+/g,"_")+".html";a.click()});
 <\/script></body></html>`;
 }
 
