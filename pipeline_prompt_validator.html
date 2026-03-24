@@ -8,12 +8,12 @@
   :root {
     --bg: #000; --surface: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.06);
     --text: #e5e5e5; --muted: #737373; --faint: #525252; --accent: #6ee7b7;
-    --green: #4ade80; --yellow: #fbbf24; --red: #ef4444;
+    --green: #4ade80; --yellow: #fbbf24; --red: #ef4444; --blue: #93c5fd;
     --mono: 'Consolas','Courier New',monospace; --sans: -apple-system,'Segoe UI',sans-serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; padding: 32px 24px; }
-  .container { max-width: 860px; margin: 0 auto; }
+  .container { max-width: 900px; margin: 0 auto; }
   .tag { font: 700 10px/1 var(--mono); text-transform: uppercase; letter-spacing: 3px; color: var(--accent); margin-bottom: 10px; }
   h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
   .sub { font-size: 12px; color: var(--muted); margin-bottom: 32px; }
@@ -32,15 +32,18 @@
     background: var(--surface); border-radius: 10px; border: 1px solid var(--border);
     padding: 16px; margin-bottom: 12px;
   }
-  .result-title { font: 700 14px/1.3 var(--sans); margin-bottom: 8px; }
+  .result-title { font: 700 14px/1.3 var(--sans); margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
   .check-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 13px; }
   .check-row .icon { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0; }
+  .check-row .check-text { flex: 1; }
   .check-row.pass .icon { color: var(--green); }
   .check-row.fail .icon { color: var(--red); }
   .check-row.warn .icon { color: var(--yellow); }
+  .check-row.repaired .icon { color: var(--blue); }
   .detail { font-size: 11px; color: var(--muted); padding-left: 30px; margin-bottom: 4px; font-family: var(--mono); }
   .detail.fail { color: var(--red); }
   .detail.warn { color: var(--yellow); }
+  .detail.repaired { color: var(--blue); }
   .verdict-box {
     background: var(--surface); border-radius: 12px; padding: 20px; margin-top: 24px;
     border: 2px solid var(--border); text-align: center;
@@ -57,19 +60,83 @@
   .badge-pass { background: rgba(74,222,128,0.15); color: var(--green); border: 1px solid rgba(74,222,128,0.3); }
   .badge-fail { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
   .badge-warn { background: rgba(251,191,36,0.15); color: var(--yellow); border: 1px solid rgba(251,191,36,0.3); }
-  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .badge-repaired { background: rgba(147,197,253,0.15); color: var(--blue); border: 1px solid rgba(147,197,253,0.3); }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 16px; }
   .summary-stat { text-align: center; padding: 12px; background: var(--surface); border-radius: 10px; border: 1px solid var(--border); }
   .summary-stat .num { font: 800 22px/1 var(--mono); }
   .summary-stat .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
   #output { display: none; }
   #output.visible { display: block; }
+
+  /* ── Repair UI ── */
+  .btn {
+    border: none; border-radius: 6px; padding: 5px 12px; font: 700 10px/1.4 var(--mono);
+    cursor: pointer; letter-spacing: 0.5px; transition: all 0.15s;
+  }
+  .btn:hover { filter: brightness(1.2); }
+  .btn-repair {
+    background: rgba(147,197,253,0.15); color: var(--blue); border: 1px solid rgba(147,197,253,0.3);
+  }
+  .btn-repair:hover { background: rgba(147,197,253,0.25); }
+  .btn-stub {
+    background: rgba(192,132,252,0.15); color: #c084fc; border: 1px solid rgba(192,132,252,0.3);
+  }
+  .btn-stub:hover { background: rgba(192,132,252,0.25); }
+  .btn-fixall {
+    background: var(--blue); color: #000; padding: 10px 24px; font-size: 12px; border-radius: 8px;
+  }
+  .btn-fixall:hover { background: #bdd5fc; }
+  .btn-fixall:disabled { opacity: 0.3; cursor: default; filter: none; }
+  .btn-download {
+    background: var(--accent); color: #000; padding: 8px 16px; font-size: 12px; border-radius: 8px;
+  }
+  .btn-download:hover { background: #a7f3d0; }
+  .btn-export {
+    background: var(--accent); color: #000; border-radius: 8px; padding: 8px 16px; font-size: 12px;
+  }
+  .btn-export-json {
+    background: var(--blue); color: #000; border-radius: 8px; padding: 8px 16px; font-size: 12px;
+  }
+  .repair-bar {
+    display: flex; gap: 10px; align-items: center; justify-content: center;
+    margin-top: 16px; flex-wrap: wrap;
+  }
+  .repair-count {
+    font: 700 11px/1 var(--mono); color: var(--blue); padding: 6px 14px;
+    border: 1px solid rgba(147,197,253,0.3); border-radius: 8px; background: rgba(147,197,253,0.06);
+  }
+  .preview-box {
+    background: rgba(147,197,253,0.04); border: 1px solid rgba(147,197,253,0.15); border-radius: 8px;
+    padding: 10px 14px; margin-top: 6px; margin-bottom: 4px; font: 12px/1.5 var(--mono); color: var(--blue);
+    max-height: 120px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+  }
+  .stage-dl-btn {
+    font: 700 9px/1 var(--mono); color: var(--blue); background: none; border: 1px solid rgba(147,197,253,0.3);
+    border-radius: 5px; padding: 3px 8px; cursor: pointer; letter-spacing: 0.5px; transition: all 0.15s;
+  }
+  .stage-dl-btn:hover { background: rgba(147,197,253,0.15); }
+  .stage-dl-btn.active { background: rgba(147,197,253,0.2); border-color: var(--blue); }
+  .applied-tag {
+    font: 700 9px/1 var(--mono); color: var(--blue); background: rgba(147,197,253,0.1);
+    border-radius: 4px; padding: 2px 6px; margin-left: 6px; letter-spacing: 0.5px;
+  }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="tag">Pipeline Prompt Validator</div>
-  <h1>Deterministic Prompt Audit</h1>
-  <div class="sub">Drop the 6 compiled prompt files (01_*.txt through 06_*.txt) to validate structural completeness and Console compatibility.</div>
+  <h1>Deterministic Structural Audit + Repair</h1>
+  <div class="sub">Structural completeness and Console compatibility checks. This validator verifies prompt shape — not semantic correctness. Manual review is still required for content quality.</div>
+
+  <div style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-wrap:wrap">
+    <div class="protocol-badge" id="protocolBadge" style="font:700 10px/1.4 var(--mono);color:var(--accent);padding:4px 10px;border:1px solid rgba(110,231,183,0.25);border-radius:6px;background:rgba(110,231,183,0.06);letter-spacing:0.5px">
+      PROTOCOL: embedded v1.0.0 (v5 calibration)
+    </div>
+    <label style="font:700 10px/1.4 var(--mono);color:var(--blue);padding:4px 10px;border:1px solid rgba(147,197,253,0.3);border-radius:6px;background:rgba(147,197,253,0.06);cursor:pointer;letter-spacing:0.5px">
+      ↑ Load External Protocol
+      <input type="file" id="protocolInput" accept=".json" style="display:none">
+    </label>
+  </div>
 
   <div class="drop-zone" id="dropZone">
     <strong>Drop 6 prompt files here</strong> — or click to browse
@@ -81,160 +148,429 @@
 
 <script>
 const STAGE_MAP = { "01": "stage1", "02": "stage2", "03": "stage3", "04": "stage4", "05": "stage5", "06": "stage6" };
+const STAGE_NUMBERS = { stage1: "01", stage2: "02", stage3: "03", stage4: "04", stage5: "05", stage6: "06" };
 
-// ── Check Definitions ──
+// ══════════════════════════════════════════
+// ── Protocol (Single Source of Truth) ──
+// ══════════════════════════════════════════
+// This embedded protocol mirrors pipeline_protocol_v1.json.
+// It can be overridden at runtime via "Load External Protocol".
 
-const FROZEN_TOKENS_ALL = ["Master Briefing", "Architecture Spec"];
+let PROTOCOL = {
+  version: "1.0.0",
+  calibrated_against: "v5 prompts",
+  calibration_date: "2026-03-24",
 
-const FROZEN_TOKENS_PER_STAGE = {
-  stage1: [],
-  stage2: ["Progression Status: CLOSED", "Progression Status: PAUSE_FOR_DECISIONS"],
-  stage3: [
-    "Progression Status: CLOSED", "Progression Status: PAUSE_FOR_DECISIONS",
-    "Master Orchestration File", "Work Package File", "Execution Checklist",
-    "_Work_Package.txt", "_Master_Orchestration.txt", "_Execution_Checklist.txt",
-    "Package ID:", "Objective:", "Depends On", "Filename:",
-    "Formal Package Contract", "Operator Header", "Boundary Test Minimum",
-    "Definition of Done", "Not-Done-If", "Delivery Report",
-    "Gate Result", "Blocking Contract-Critical Decisions",
-    "Minimal Decision Questionnaire", "Resume Instruction"
+  stages: {
+    stage1: {
+      number: "01", label: "Stage 01 — Requirements Engineer", artifact_produced: "Master Briefing",
+      frozen_tokens: ["Master Briefing", "Definition of Done", "CRITICAL_RULE", "DO_NOT_BREAK"],
+      required_sections: ["Role", "Interview", "Master Briefing", "Complexity Assessment", "Safety-Critical", "Initial Greeting"],
+      contract_id_prefixes: ["FACT-", "DEC-", "DONE-", "SCOPE-"],
+      has_escalation_check: false,
+      greeting_pattern: "Begin the conversation exactly",
+      stage_specific_checks: []
+    },
+    stage2: {
+      number: "02", label: "Stage 02 — Technical Architect", artifact_produced: "Architecture Spec",
+      frozen_tokens: ["Master Briefing", "Architecture Spec", "Progression Status: CLOSED", "Progression Status: PAUSE_FOR_DECISIONS"],
+      required_sections: ["Role", "Module Inventory", "Canonical Shared Types", "Boundary", "Invariant", "Error", "Dependency", "Architecture Readiness", "Decision Closure", "Progression Status", "Initial Greeting"],
+      contract_id_prefixes: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-"],
+      has_escalation_check: false,
+      greeting_pattern: "Begin the conversation exactly",
+      stage_specific_checks: []
+    },
+    stage3: {
+      number: "03", label: "Stage 03 — Project Orchestrator", artifact_produced: "Master Orchestration File + Work Packages",
+      frozen_tokens: ["Master Briefing", "Architecture Spec", "Progression Status: CLOSED", "Progression Status: PAUSE_FOR_DECISIONS", "Master Orchestration File", "Work Package File", "Execution Checklist", "_Work_Package.txt", "_Master_Orchestration.txt", "_Execution_Checklist.txt", "Package ID:", "Objective:", "Depends On", "Filename:", "Formal Package Contract", "Operator Header", "Boundary Test Minimum", "Definition of Done", "Not-Done-If", "delivery declaration", "Gate Result", "Blocking Contract-Critical Decisions", "Minimal Decision Questionnaire", "Resume Instruction"],
+      required_sections: ["Role", "Contract Closure Gate", "Phase 0", "Phase 1", "Phase 2", "Operator Header", "Formal Package Contract", "delivery declaration", "Repair Prompt", "Artifact Ledger", "Initial Greeting"],
+      contract_id_prefixes: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-", "FACT-", "DEC-", "DONE-"],
+      has_escalation_check: true,
+      greeting_pattern: "When the conversation begins",
+      stage_specific_checks: ["mermaid_reference"]
+    },
+    stage4: {
+      number: "04", label: "Stage 04 — Module Implementer", artifact_produced: "Delivery Report",
+      frozen_tokens: ["Master Briefing", "Architecture Spec", "Delivery Report", "Definition of Done", "Not-Done-If", "Boundary Verification Status"],
+      required_sections: ["Role", "Scope", "Required Inputs", "Output Contract", "Delivery Report", "Validation", "Blocked-State", "Quality Gate", "Initial Greeting"],
+      contract_id_prefixes: [],
+      has_escalation_check: true,
+      greeting_pattern: "Begin the conversation exactly",
+      stage_specific_checks: []
+    },
+    stage5: {
+      number: "05", label: "Stage 05 — Code Reviewer", artifact_produced: "Review Report",
+      frozen_tokens: ["Master Briefing", "Architecture Spec", "FINAL_DISPOSITION:", "Merge-Blocking: YES", "Merge-Blocking: NO", "Review Report", "CRITICAL", "MAJOR", "MINOR", "NOTE"],
+      required_sections: ["Role", "Contract Compliance", "Review Checklist", "Evidence Classification", "Review Report", "Finding", "Severity", "Verdict", "Final Disposition", "Initial Greeting"],
+      contract_id_prefixes: [],
+      has_escalation_check: true,
+      greeting_pattern: "Begin the conversation exactly",
+      stage_specific_checks: ["final_disposition_position"]
+    },
+    stage6: {
+      number: "06", label: "Stage 06 — Merge Coordinator", artifact_produced: "Integration Report",
+      frozen_tokens: ["Architecture Spec", "Review Report", "CLEAN MERGE", "MERGED WITH FIXES", "Delivery Report", "Integration Report", "Integration Verdict"],
+      required_sections: ["Role", "Integration Verdict", "Conflict", "Boundary Validation", "Integration Report", "Integration Manifest", "Compatibility Scan", "Blockers Requiring Upstream", "Initial Greeting"],
+      contract_id_prefixes: [],
+      has_escalation_check: true,
+      greeting_pattern: "Begin the conversation exactly",
+      stage_specific_checks: []
+    }
+  },
+
+  universal_checks: {
+    output_contract_tag: { token: "<OUTPUT_CONTRACT>", severity_if_missing: "warn" },
+    minimum_length: { threshold_chars: 1500, severity_if_below: "warn" },
+    residual_domain_markers: { pattern: "\\[DOMAIN:[^\\]]*\\]", severity_if_found: "fail" }
+  },
+
+  escalation_patterns: [
+    { regex: "escalat", second: "architect|upstream", flags: "i" },
+    { regex: "blocked.state", flags: "i" },
+    { regex: "contract\\s*/\\s*spec\\s*issue", flags: "i" },
+    { regex: "blockers?\\s+requiring\\s+upstream", flags: "i" }
   ],
-  stage4: ["Delivery Report", "Boundary Test Minimum", "Definition of Done", "Not-Done-If"],
-  stage5: [
-    "FINAL_DISPOSITION: ACCEPT", "FINAL_DISPOSITION: REWORK",
-    "REVIEW_BINDING_TOKEN:", "Merge-Blocking: YES", "Merge-Blocking: NO",
-    "Delivery Report", "Boundary Test Minimum", "CRITICAL", "MAJOR", "MINOR", "NOTE"
-  ],
-  stage6: [
-    "FINAL_DISPOSITION: ACCEPT", "REVIEW_BINDING_TOKEN",
-    "CLEAN MERGE", "MERGED WITH FIXES", "Delivery Report"
+
+  greeting_patterns: {
+    sentence_patterns: ["When the conversation begins", "Begin the conversation exactly"],
+    required_tag: "DO_NOT_BREAK"
+  },
+
+  cross_prompt_checks: [
+    { id: "delivery_handoff_04_05", label: "Delivery Handoff (04→05)", requires_stages: ["stage4", "stage5"], conditions: [{ stage: "stage4", contains: "Delivery Report" }, { stage: "stage5", matches: "delivery", flags: "i" }], severity_if_fail: "fail" },
+    { id: "review_report_chain_05_06", label: "Review Report Chain (05→06)", requires_stages: ["stage5", "stage6"], conditions: [{ stage: "stage5", contains: "Review Report" }, { stage: "stage6", contains: "Review Report" }], severity_if_fail: "fail" },
+    { id: "verdict_routing_05_06", label: "Verdict Routing (05→06)", requires_stages: ["stage5", "stage6"], conditions: [{ stage: "stage5", matches: "FINAL_DISPOSITION", flags: "i" }, { stage: "stage6", matches: "Integration Verdict", flags: "i" }], severity_if_fail: "fail" },
+    { id: "arch_spec_downstream", label: "Architecture Spec Reference (02-06)", requires_stages: ["stage2", "stage3", "stage4", "stage5", "stage6"], conditions: [{ stage: "stage2", contains: "Architecture Spec" }, { stage: "stage3", contains: "Architecture Spec" }, { stage: "stage4", contains: "Architecture Spec" }, { stage: "stage5", contains: "Architecture Spec" }, { stage: "stage6", contains: "Architecture Spec" }], severity_if_fail: "fail" },
+    { id: "master_briefing_upstream", label: "Master Briefing Reference (01-05)", requires_stages: ["stage1", "stage2", "stage3", "stage4", "stage5"], conditions: [{ stage: "stage1", contains: "Master Briefing" }, { stage: "stage2", contains: "Master Briefing" }, { stage: "stage3", contains: "Master Briefing" }, { stage: "stage4", contains: "Master Briefing" }, { stage: "stage5", contains: "Master Briefing" }], severity_if_fail: "warn" },
+    { id: "severity_labels_05_06", label: "Severity Labels (05↔06)", requires_stages: ["stage5", "stage6"], conditions: [{ stage: "stage5", contains: "CRITICAL" }, { stage: "stage5", contains: "MAJOR" }, { stage: "stage5", contains: "MINOR" }, { stage: "stage6", contains: "CRITICAL" }, { stage: "stage6", contains: "MAJOR" }, { stage: "stage6", contains: "MINOR" }], severity_if_fail: "warn" }
   ]
 };
 
-const REQUIRED_SECTIONS_PER_STAGE = {
-  stage1: ["Role", "Interview", "Master Briefing", "Complexity Assessment", "Safety Assessment", "Initial Greeting"],
-  stage2: ["Role", "Component Inventory", "Shared Definitions", "Boundary Contracts", "Invariants", "Error", "Dependency Map", "Architecture Readiness", "Decision Closure", "Progression Status", "Initial Greeting"],
-  stage3: ["Role", "Contract Closure Gate", "Phase 0", "Phase 1", "Phase 2", "Operator Header", "Formal Package Contract", "Delivery Report", "Repair Prompt", "Artifact Ledger", "Initial Greeting"],
-  stage4: ["Role", "Scope", "Input Contract", "Output Contract", "Delivery Report", "Validation", "Escalation", "Quality Gate", "Self-Check", "Initial Greeting"],
-  stage5: ["Role", "REVIEW_BINDING_TOKEN", "Contract Compliance", "Architecture Compliance", "Boundary Verification", "Delivery Report", "Finding", "Severity", "Verdict", "FINAL_DISPOSITION", "Initial Greeting"],
-  stage6: ["Role", "FINAL_DISPOSITION: ACCEPT", "Dependency", "Conflict", "Boundary Validation", "Integration Report", "Integration Manifest", "Escalation", "Initial Greeting"]
+// ── Protocol loading ──
+
+function loadProtocol(json) {
+  try {
+    const p = typeof json === "string" ? JSON.parse(json) : json;
+    if (!p.stages || !p.universal_checks) throw new Error("Missing required protocol fields: stages, universal_checks");
+    PROTOCOL = p;
+    const badge = document.getElementById("protocolBadge");
+    if (badge) badge.textContent = `PROTOCOL: ${p.version || "?"} (${p.calibrated_against || "custom"})`;
+    return true;
+  } catch (e) {
+    alert("Invalid protocol file: " + e.message);
+    return false;
+  }
+}
+
+// Bind protocol file input
+document.getElementById("protocolInput").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { loadProtocol(reader.result); };
+  reader.readAsText(file);
+});
+
+// ── Derive check arrays from PROTOCOL for backward-compatible access ──
+
+function getFrozenTokens(stageKey) {
+  return PROTOCOL.stages[stageKey]?.frozen_tokens || [];
+}
+function getRequiredSections(stageKey) {
+  return PROTOCOL.stages[stageKey]?.required_sections || [];
+}
+function getContractPrefixes(stageKey) {
+  return PROTOCOL.stages[stageKey]?.contract_id_prefixes || [];
+}
+function getStageLabel(stageKey) {
+  return PROTOCOL.stages[stageKey]?.label || stageKey;
+}
+function hasEscalationCheck(stageKey) {
+  return PROTOCOL.stages[stageKey]?.has_escalation_check || false;
+}
+function getGreetingPattern(stageKey) {
+  return PROTOCOL.stages[stageKey]?.greeting_pattern || "";
+}
+
+// ══════════════════════════════════════════
+// ── Repair Engine ──
+// ══════════════════════════════════════════
+
+/**
+ * Each repair function takes (stageKey, text) and returns
+ * { repaired: string, description: string } or null if nothing to do.
+ */
+
+const REPAIR_FUNCTIONS = {
+
+  // 1. Strip residual [DOMAIN:...] markers
+  residualDomainMarkers(stageKey, text) {
+    const pattern = /\[DOMAIN:[^\]]*\]/g;
+    const matches = text.match(pattern);
+    if (!matches || matches.length === 0) return null;
+    return {
+      repaired: text.replace(pattern, "").replace(/\n{3,}/g, "\n\n"),
+      description: `Removed ${matches.length} residual [DOMAIN:] marker(s)`,
+      preview: matches.slice(0, 3).join(", ") + (matches.length > 3 ? ` … (+${matches.length - 3} more)` : "")
+    };
+  },
+
+  // 2. Insert missing DO_NOT_BREAK tag around greeting
+  missingDoNotBreak(stageKey, text) {
+    if (text.includes("DO_NOT_BREAK")) return null;
+    const greetingMatch = text.match(/When the conversation begins[^\n]*/i);
+    if (!greetingMatch) return null;
+    const original = greetingMatch[0];
+    const wrapped = `<!-- DO_NOT_BREAK -->\n${original}\n<!-- /DO_NOT_BREAK -->`;
+    return {
+      repaired: text.replace(original, wrapped),
+      description: "Wrapped greeting in DO_NOT_BREAK tags",
+      preview: wrapped.slice(0, 120)
+    };
+  },
+
+  // 3. Insert missing <OUTPUT_CONTRACT> skeleton
+  missingOutputContract(stageKey, text) {
+    if (text.includes("<OUTPUT_CONTRACT>")) return null;
+    // Insert after first major heading or role section
+    const roleMatch = text.match(/(#+ *Role[^\n]*\n(?:[^\n]*\n)*?\n)/i);
+    const insertionPoint = roleMatch ? roleMatch.index + roleMatch[0].length : 0;
+    const skeleton =
+      `<OUTPUT_CONTRACT>\n` +
+      `<!-- TODO: Define the machine-parseable output format for this stage -->\n` +
+      `<!-- Fields, structure, and required tokens go here -->\n` +
+      `</OUTPUT_CONTRACT>\n\n`;
+    return {
+      repaired: text.slice(0, insertionPoint) + skeleton + text.slice(insertionPoint),
+      description: "Inserted OUTPUT_CONTRACT skeleton block",
+      preview: skeleton.trim()
+    };
+  },
+
+  // 4. Insert missing required sections as TODO stubs
+  missingSections(stageKey, text) {
+    const sections = getRequiredSections(stageKey);
+    const lower = text.toLowerCase();
+    const missing = sections.filter(sec => !lower.includes(sec.toLowerCase()));
+    if (missing.length === 0) return null;
+    const stubs = missing.map(sec =>
+      `\n## ${sec}\n<!-- TODO: Section "${sec}" is required for this stage. Fill in content. -->\n`
+    ).join("\n");
+    // Append before the very last line or at end
+    return {
+      repaired: text.trimEnd() + "\n\n" + `<!-- ═══ AUTO-INSERTED SECTION STUBS ═══ -->\n` + stubs + "\n",
+      description: `Inserted ${missing.length} missing section stub(s): ${missing.join(", ")}`,
+      preview: missing.join(", ")
+    };
+  },
+
+  // 5. Insert missing frozen tokens as TODO comments
+  missingFrozenTokens(stageKey, text) {
+    const requiredTokens = getFrozenTokens(stageKey);
+    const missing = requiredTokens.filter(token => !text.includes(token));
+    if (missing.length === 0) return null;
+    const stubs = missing.map(token =>
+      `<!-- TODO: Missing frozen token: "${token}" — insert in appropriate context -->`
+    ).join("\n");
+    return {
+      repaired: text.trimEnd() + "\n\n" + `<!-- ═══ MISSING FROZEN TOKENS ═══ -->\n` + stubs + "\n",
+      description: `Flagged ${missing.length} missing frozen token(s)`,
+      preview: missing.slice(0, 5).join(", ") + (missing.length > 5 ? ` … (+${missing.length - 5} more)` : "")
+    };
+  }
 };
 
-const CONTRACT_ID_PREFIXES = {
-  stage1: ["FACT-", "DEC-", "DONE-", "SCOPE-"],
-  stage2: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-"],
-  stage3: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-", "FACT-", "DEC-", "DONE-"],
-  stage4: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-", "FACT-"],
-  stage5: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-", "FACT-"],
-  stage6: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-"]
+// Map check names to their repair function key
+const CHECK_TO_REPAIR = {
+  "Residual [DOMAIN:] Markers": "residualDomainMarkers",
+  "Initial Greeting": "missingDoNotBreak",
+  "OUTPUT_CONTRACT Tag": "missingOutputContract",
+  "Required Sections": "missingSections",
+  "Frozen Tokens": "missingFrozenTokens"
 };
 
+// Classify repairs: "fix" = deterministic correction, "stub" = placeholder/scaffold insertion
+const REPAIR_TYPE = {
+  residualDomainMarkers: "fix",    // removes invalid content — result is deterministically correct
+  missingDoNotBreak: "fix",        // wraps existing greeting — result is deterministically correct
+  missingOutputContract: "stub",   // inserts empty skeleton with TODO — requires manual fill
+  missingSections: "stub",         // inserts heading stubs with TODO — requires manual fill
+  missingFrozenTokens: "stub"      // inserts TODO comments — requires manual placement
+};
+
+/**
+ * Get all applicable repairs for a stage.
+ * Returns array of { key, description, preview, apply(text)->string }
+ */
+function getRepairs(stageKey, text) {
+  const repairs = [];
+  for (const [key, fn] of Object.entries(REPAIR_FUNCTIONS)) {
+    const result = fn(stageKey, text);
+    if (result) {
+      repairs.push({
+        key,
+        type: REPAIR_TYPE[key] || "fix",
+        description: result.description,
+        preview: result.preview || "",
+        apply: (t) => REPAIR_FUNCTIONS[key](stageKey, t)?.repaired || t
+      });
+    }
+  }
+  return repairs;
+}
+
+/**
+ * Apply all repairs sequentially to a text.
+ */
+function applyAllRepairs(stageKey, text) {
+  let current = text;
+  const applied = [];
+  for (const fn of Object.values(REPAIR_FUNCTIONS)) {
+    const result = fn(stageKey, current);
+    if (result) {
+      current = result.repaired;
+      applied.push(result.description);
+    }
+  }
+  return { text: current, applied };
+}
+
+
+// ══════════════════════════════════════════
 // ── Validator ──
+// ══════════════════════════════════════════
 
 function validatePrompt(stageKey, text, filename) {
   const results = [];
 
-  // 1. Frozen tokens
-  const requiredTokens = [...FROZEN_TOKENS_ALL, ...(FROZEN_TOKENS_PER_STAGE[stageKey] || [])];
+  // 1. Frozen tokens (from protocol)
+  const requiredTokens = getFrozenTokens(stageKey);
   const missingTokens = requiredTokens.filter(token => !text.includes(token));
   results.push({
     check: "Frozen Tokens",
     pass: missingTokens.length === 0,
     severity: missingTokens.length > 0 ? "fail" : "pass",
-    detail: missingTokens.length ? `Missing: ${missingTokens.join(", ")}` : `All ${requiredTokens.length} tokens present`
+    detail: missingTokens.length ? `Missing: ${missingTokens.join(", ")}` : `All ${requiredTokens.length} tokens present`,
+    repairable: missingTokens.length > 0
   });
 
-  // 2. Residual domain markers
-  const domainMarkers = (text.match(/\[DOMAIN:/g) || []);
+  // 2. Residual domain markers (from protocol.universal_checks)
+  const domainPattern = new RegExp(PROTOCOL.universal_checks.residual_domain_markers.pattern, "g");
+  const domainMarkers = (text.match(domainPattern) || []);
   results.push({
     check: "Residual [DOMAIN:] Markers",
     pass: domainMarkers.length === 0,
-    severity: domainMarkers.length > 0 ? "fail" : "pass",
-    detail: domainMarkers.length ? `${domainMarkers.length} unfilled markers found` : "No residual markers"
+    severity: domainMarkers.length > 0 ? PROTOCOL.universal_checks.residual_domain_markers.severity_if_found : "pass",
+    detail: domainMarkers.length ? `${domainMarkers.length} unfilled markers found` : "No residual markers",
+    repairable: domainMarkers.length > 0
   });
 
-  // 3. Required sections (fuzzy search - case insensitive)
-  const sections = REQUIRED_SECTIONS_PER_STAGE[stageKey] || [];
-  const missingSections = sections.filter(sec => {
-    const lower = text.toLowerCase();
-    const secLower = sec.toLowerCase();
-    return !lower.includes(secLower);
-  });
+  // 3. Required sections (from protocol)
+  const sections = getRequiredSections(stageKey);
+  const missingSections = sections.filter(sec => !text.toLowerCase().includes(sec.toLowerCase()));
   results.push({
     check: "Required Sections",
     pass: missingSections.length === 0,
     severity: missingSections.length > 0 ? "fail" : "pass",
-    detail: missingSections.length ? `Missing: ${missingSections.join(", ")}` : `All ${sections.length} sections present`
+    detail: missingSections.length ? `Missing: ${missingSections.join(", ")}` : `All ${sections.length} sections present`,
+    repairable: missingSections.length > 0
   });
 
-  // 4. Contract ID prefixes
-  const prefixes = CONTRACT_ID_PREFIXES[stageKey] || [];
-  const missingPrefixes = prefixes.filter(prefix => !text.includes(prefix));
-  results.push({
-    check: "Contract ID Prefixes",
-    pass: missingPrefixes.length === 0,
-    severity: missingPrefixes.length > 0 ? "warn" : "pass",
-    detail: missingPrefixes.length ? `Missing: ${missingPrefixes.join(", ")}` : `All ${prefixes.length} prefixes present`
-  });
-
-  // 5. Escalation rule (stages 03-06)
-  if (["stage3", "stage4", "stage5", "stage6"].includes(stageKey)) {
-    const hasEscalation = /escalat/i.test(text) && (/architect/i.test(text) || /upstream/i.test(text));
+  // 4. Contract ID prefixes (from protocol)
+  const prefixes = getContractPrefixes(stageKey);
+  if (prefixes.length === 0) {
     results.push({
-      check: "Escalation Rule",
-      pass: hasEscalation,
-      severity: hasEscalation ? "pass" : "fail",
-      detail: hasEscalation ? "Escalation rule present" : "No escalation rule found referencing architect or upstream routing"
+      check: "Contract ID Prefixes",
+      pass: true,
+      severity: "pass",
+      detail: "N/A — this stage consumes contracts, does not define them",
+      repairable: false
+    });
+  } else {
+    const missingPrefixes = prefixes.filter(prefix => !text.includes(prefix));
+    results.push({
+      check: "Contract ID Prefixes",
+      pass: missingPrefixes.length === 0,
+      severity: missingPrefixes.length > 0 ? "warn" : "pass",
+      detail: missingPrefixes.length ? `Missing: ${missingPrefixes.join(", ")}` : `All ${prefixes.length} prefixes present`,
+      repairable: false
     });
   }
 
-  // 6. Initial greeting
-  const hasGreeting = text.includes("DO_NOT_BREAK");
-  const hasGreetingSentence = /When the conversation begins/i.test(text);
+  // 5. Escalation / blocked-state rule (from protocol)
+  if (hasEscalationCheck(stageKey)) {
+    const rawPats = PROTOCOL.escalation_patterns || [];
+    const patterns = Array.isArray(rawPats) ? rawPats : (rawPats.patterns || []);
+    const hasEsc = patterns.some(p => {
+      const r = new RegExp(p.regex, p.flags || "");
+      if (!r.test(text)) return false;
+      if (p.second) return new RegExp(p.second, p.flags || "").test(text);
+      return true;
+    });
+    results.push({
+      check: "Escalation Rule",
+      pass: hasEsc,
+      severity: hasEsc ? "pass" : "fail",
+      detail: hasEsc ? "Escalation / blocked-state rule present" : "No escalation or blocked-state routing found",
+      repairable: false
+    });
+  }
+
+  // 6. Initial greeting (from protocol.greeting_patterns)
+  const gp = PROTOCOL.greeting_patterns;
+  const hasGreetingTag = text.includes(gp.required_tag);
+  const hasGreetingSentence = gp.sentence_patterns.some(p => text.toLowerCase().includes(p.toLowerCase()));
   results.push({
     check: "Initial Greeting",
-    pass: hasGreeting && hasGreetingSentence,
-    severity: (hasGreeting && hasGreetingSentence) ? "pass" : hasGreetingSentence ? "warn" : "fail",
-    detail: !hasGreetingSentence ? "No greeting sentence found" : !hasGreeting ? "Greeting exists but missing DO_NOT_BREAK tag" : "Greeting present with DO_NOT_BREAK tag"
+    pass: hasGreetingTag && hasGreetingSentence,
+    severity: (hasGreetingTag && hasGreetingSentence) ? "pass" : hasGreetingSentence ? "warn" : "fail",
+    detail: !hasGreetingSentence ? "No greeting instruction found" : !hasGreetingTag ? `Greeting exists but missing ${gp.required_tag} tag` : `Greeting present with ${gp.required_tag} tag`,
+    repairable: hasGreetingSentence && !hasGreetingTag
   });
 
-  // 7. OUTPUT_CONTRACT tag
-  const hasOutputContract = text.includes("<OUTPUT_CONTRACT>");
+  // 7. OUTPUT_CONTRACT tag (from protocol.universal_checks)
+  const ocToken = PROTOCOL.universal_checks.output_contract_tag.token;
+  const hasOutputContract = text.includes(ocToken);
   results.push({
     check: "OUTPUT_CONTRACT Tag",
     pass: hasOutputContract,
-    severity: hasOutputContract ? "pass" : "warn",
-    detail: hasOutputContract ? "OUTPUT_CONTRACT block present" : "No OUTPUT_CONTRACT block found"
+    severity: hasOutputContract ? "pass" : PROTOCOL.universal_checks.output_contract_tag.severity_if_missing,
+    detail: hasOutputContract ? "OUTPUT_CONTRACT block present" : "No OUTPUT_CONTRACT block found",
+    repairable: !hasOutputContract
   });
 
-  // 8. Minimum length check
+  // 8. Minimum length (from protocol.universal_checks)
+  const minLen = PROTOCOL.universal_checks.minimum_length.threshold_chars;
   const charCount = text.length;
-  const tooShort = charCount < 1500;
+  const tooShort = charCount < minLen;
   results.push({
     check: "Minimum Length",
     pass: !tooShort,
-    severity: tooShort ? "warn" : "pass",
-    detail: `${charCount.toLocaleString()} characters${tooShort ? " — suspiciously short for a pipeline prompt" : ""}`
+    severity: tooShort ? PROTOCOL.universal_checks.minimum_length.severity_if_below : "pass",
+    detail: `${charCount.toLocaleString()} characters${tooShort ? " — suspiciously short for a pipeline prompt" : ""}`,
+    repairable: false
   });
 
-  // 9. Stage-specific checks
-  if (stageKey === "stage05" || stageKey === "stage5") {
+  // 9. Stage-specific checks (from protocol)
+  const stageChecks = PROTOCOL.stages[stageKey]?.stage_specific_checks || [];
+  if (stageChecks.includes("final_disposition_position")) {
     const hasFinalDispoLast = /FINAL_DISPOSITION[^]*?$/i.test(text.slice(-500));
     results.push({
       check: "FINAL_DISPOSITION Position",
       pass: hasFinalDispoLast,
       severity: hasFinalDispoLast ? "pass" : "warn",
-      detail: hasFinalDispoLast ? "FINAL_DISPOSITION appears near end of prompt" : "FINAL_DISPOSITION may not be positioned as the last section"
+      detail: hasFinalDispoLast ? "FINAL_DISPOSITION appears near end of prompt" : "FINAL_DISPOSITION may not be positioned as the last section",
+      repairable: false
     });
   }
-
-  if (stageKey === "stage3") {
+  if (stageChecks.includes("mermaid_reference")) {
     const hasMermaid = /mermaid/i.test(text);
     results.push({
       check: "Dependency Graph Format",
       pass: hasMermaid,
       severity: hasMermaid ? "pass" : "warn",
-      detail: hasMermaid ? "Mermaid graph syntax referenced" : "No Mermaid graph reference found — dependency visualization may be missing"
+      detail: hasMermaid ? "Mermaid graph syntax referenced" : "No Mermaid graph reference found — dependency visualization may be missing",
+      repairable: false
     });
   }
 
@@ -243,104 +579,147 @@ function validatePrompt(stageKey, text, filename) {
 
 function crossPromptChecks(files) {
   const results = [];
-  const allTexts = Object.values(files);
+  const checks = PROTOCOL.cross_prompt_checks || [];
 
-  // Check consistent deliverable terminology across prompts
-  // Extract the most common domain-specific noun after "deliverable" or in role titles
-  const stage4 = files.stage4 || "";
-  const stage5 = files.stage5 || "";
-  const stage6 = files.stage6 || "";
+  for (const check of checks) {
+    // Verify all required stages are present
+    const allPresent = check.requires_stages.every(k => files[k]);
+    if (!allPresent) {
+      const missingStages = check.requires_stages.filter(k => !files[k]).map(k => PROTOCOL.stages[k]?.number || k);
+      results.push({
+        check: check.label,
+        pass: false,
+        severity: "warn",
+        detail: `Cannot evaluate — missing file(s) for stage ${missingStages.join(", ")}`,
+        repairable: false
+      });
+      continue;
+    }
 
-  // Check that Stage 05 references the same Delivery Report structure as Stage 04
-  if (stage4 && stage5) {
-    const s4HasDR = stage4.includes("Delivery Report");
-    const s5HasDR = stage5.includes("Delivery Report");
+    // Evaluate all conditions, collect failures
+    const failedConditions = [];
+    for (const cond of check.conditions) {
+      const text = files[cond.stage] || "";
+      const stageNum = PROTOCOL.stages[cond.stage]?.number || cond.stage;
+      let passed = false;
+      let expected = "";
+      if (cond.contains) {
+        passed = text.includes(cond.contains);
+        expected = `"${cond.contains}"`;
+      } else if (cond.matches) {
+        passed = new RegExp(cond.matches, cond.flags || "").test(text);
+        expected = `/${cond.matches}/`;
+      }
+      if (!passed) failedConditions.push(`S${stageNum} missing ${expected}`);
+    }
+
+    const allPass = failedConditions.length === 0;
     results.push({
-      check: "Delivery Report Consistency (04↔05)",
-      pass: s4HasDR && s5HasDR,
-      severity: (s4HasDR && s5HasDR) ? "pass" : "fail",
-      detail: (s4HasDR && s5HasDR) ? "Both Stage 04 and 05 reference Delivery Report" : "Delivery Report reference missing in one stage"
+      check: check.label,
+      pass: allPass,
+      severity: allPass ? "pass" : (check.severity_if_fail || "fail"),
+      detail: allPass
+        ? `All ${check.conditions.length} conditions met`
+        : failedConditions.join("; "),
+      repairable: false
     });
   }
-
-  // Check that Stage 06 requires FINAL_DISPOSITION: ACCEPT from Stage 05
-  if (stage5 && stage6) {
-    const s5HasFD = stage5.includes("FINAL_DISPOSITION: ACCEPT");
-    const s6HasFD = stage6.includes("FINAL_DISPOSITION: ACCEPT");
-    results.push({
-      check: "FINAL_DISPOSITION Chain (05→06)",
-      pass: s5HasFD && s6HasFD,
-      severity: (s5HasFD && s6HasFD) ? "pass" : "fail",
-      detail: (s5HasFD && s6HasFD) ? "ACCEPT chain intact from review to integration" : "FINAL_DISPOSITION: ACCEPT reference broken between stages"
-    });
-  }
-
-  // Check REVIEW_BINDING_TOKEN in both 05 and 06
-  if (stage5 && stage6) {
-    const s5HasRBT = stage5.includes("REVIEW_BINDING_TOKEN");
-    const s6HasRBT = stage6.includes("REVIEW_BINDING_TOKEN");
-    results.push({
-      check: "Binding Token Chain (05→06)",
-      pass: s5HasRBT && s6HasRBT,
-      severity: (s5HasRBT && s6HasRBT) ? "pass" : "fail",
-      detail: (s5HasRBT && s6HasRBT) ? "REVIEW_BINDING_TOKEN referenced in both review and integration" : "Binding token reference missing in one stage"
-    });
-  }
-
-  // Check all prompts reference Architecture Spec
-  const allHaveArchSpec = allTexts.every(t => t.includes("Architecture Spec"));
-  results.push({
-    check: "Architecture Spec Reference (all stages)",
-    pass: allHaveArchSpec,
-    severity: allHaveArchSpec ? "pass" : "warn",
-    detail: allHaveArchSpec ? "All prompts reference Architecture Spec" : "Some prompts missing Architecture Spec reference"
-  });
 
   return results;
 }
 
-// ── UI ──
+
+// ══════════════════════════════════════════
+// ── UI Rendering ──
+// ══════════════════════════════════════════
+
+// Global state for repair tracking
+let originalFiles = {};
+let repairedFiles = {};
+let repairLog = {};  // stageKey -> [{ description, key }]
 
 function renderResults(files) {
+  originalFiles = { ...files };
+  repairedFiles = {};
+  repairLog = {};
+
   const output = document.getElementById("output");
-  let totalPass = 0, totalFail = 0, totalWarn = 0;
+  let totalPass = 0, totalFail = 0, totalWarn = 0, totalFixable = 0, totalStubbable = 0;
   let html = "";
   let md = "# Pipeline Prompt Validation Report\n\nGenerated: " + new Date().toISOString() + "\n\n";
 
-  // Per-prompt reports
-  const stageLabels = {
-    stage1: "Stage 01 — Requirements Engineer",
-    stage2: "Stage 02 — Technical Architect",
-    stage3: "Stage 03 — Project Orchestrator",
-    stage4: "Stage 04 — Deliverable Author",
-    stage5: "Stage 05 — Deliverable Reviewer",
-    stage6: "Stage 06 — Integration Coordinator"
-  };
+  const stageLabels = {};
+  for (const [key, stage] of Object.entries(PROTOCOL.stages)) {
+    stageLabels[key] = stage.label;
+  }
 
+  // Per-prompt reports
   for (const [stageKey, label] of Object.entries(stageLabels)) {
     const text = files[stageKey];
     if (!text) {
-      html += `<div class="result-card"><div class="result-title">${label}</div><div class="check-row fail"><span class="icon">✗</span> File not provided</div></div>`;
+      html += `<div class="result-card"><div class="result-title">${label}</div><div class="check-row fail"><span class="icon">✗</span><span class="check-text">File not provided</span></div></div>`;
       md += `## ${label}\n\n✗ FAIL — File not provided\n\n`;
       totalFail++;
       continue;
     }
 
     const results = validatePrompt(stageKey, text, "");
-    html += `<div class="result-card"><div class="result-title">${label}</div>`;
-    md += `## ${label}\n\n`;
-    md += `| Check | Result | Detail |\n|---|---|---|\n`;
+    const repairs = getRepairs(stageKey, text);
+    const stageFixes = repairs.filter(r => r.type === "fix").length;
+    const stageStubs = repairs.filter(r => r.type === "stub").length;
+    const stageRepairable = repairs.length;
+    totalFixable += stageFixes;
+    totalStubbable += stageStubs;
+
+    html += `<div class="result-card" id="card-${stageKey}">`;
+    html += `<div class="result-title">${label}`;
+    if (stageRepairable > 0) {
+      html += ` <span class="stage-dl-btn" style="display:none" id="dl-${stageKey}">↓ Download Repaired</span>`;
+    }
+    html += `</div>`;
+
+    md += `## ${label}\n\n| Check | Result | Detail |\n|---|---|---|\n`;
+
     for (const r of results) {
       const cls = r.severity;
       const icon = cls === "pass" ? "✓" : cls === "fail" ? "✗" : "⚠";
       const mdIcon = cls === "pass" ? "✓ PASS" : cls === "fail" ? "✗ FAIL" : "⚠ WARN";
-      html += `<div class="check-row ${cls}"><span class="icon">${icon}</span> ${r.check}</div>`;
-      if (r.detail) html += `<div class="detail ${cls}">${r.detail}</div>`;
+
+      html += `<div class="check-row ${cls}" id="check-${stageKey}-${r.check.replace(/[^a-zA-Z0-9]/g, "_")}">`;
+      html += `<span class="icon">${icon}</span>`;
+      html += `<span class="check-text">${r.check}</span>`;
+
+      // Individual repair button
+      if (r.repairable && CHECK_TO_REPAIR[r.check]) {
+        const repairKey = CHECK_TO_REPAIR[r.check];
+        const repairResult = REPAIR_FUNCTIONS[repairKey](stageKey, text);
+        const rType = REPAIR_TYPE[repairKey] || "fix";
+        if (repairResult) {
+          const btnClass = rType === "fix" ? "btn-repair" : "btn-stub";
+          const btnLabel = rType === "fix" ? "⚡ Fix" : "⊕ Stub";
+          html += ` <button class="btn ${btnClass}" data-stage="${stageKey}" data-repair="${repairKey}" data-check="${r.check}" data-rtype="${rType}">${btnLabel}</button>`;
+        }
+      }
+      html += `</div>`;
+
+      if (r.detail) html += `<div class="detail ${cls}" id="detail-${stageKey}-${r.check.replace(/[^a-zA-Z0-9]/g, "_")}">${r.detail}</div>`;
+
+      // Preview box for repairable items
+      if (r.repairable && CHECK_TO_REPAIR[r.check]) {
+        const repairKey = CHECK_TO_REPAIR[r.check];
+        const repairResult = REPAIR_FUNCTIONS[repairKey](stageKey, text);
+        if (repairResult && repairResult.preview) {
+          html += `<div class="preview-box" id="preview-${stageKey}-${repairKey}">${escapeHtml(repairResult.preview)}</div>`;
+        }
+      }
+
       md += `| ${r.check} | ${mdIcon} | ${r.detail || "—"} |\n`;
+
       if (cls === "pass") totalPass++;
       else if (cls === "fail") totalFail++;
       else totalWarn++;
     }
+
     html += `</div>`;
     md += "\n";
   }
@@ -355,7 +734,7 @@ function renderResults(files) {
       const cls = r.severity;
       const icon = cls === "pass" ? "✓" : cls === "fail" ? "✗" : "⚠";
       const mdIcon = cls === "pass" ? "✓ PASS" : cls === "fail" ? "✗ FAIL" : "⚠ WARN";
-      html += `<div class="check-row ${cls}"><span class="icon">${icon}</span> ${r.check}</div>`;
+      html += `<div class="check-row ${cls}"><span class="icon">${icon}</span><span class="check-text">${r.check}</span></div>`;
       if (r.detail) html += `<div class="detail ${cls}">${r.detail}</div>`;
       md += `| ${r.check} | ${mdIcon} | ${r.detail || "—"} |\n`;
       if (cls === "pass") totalPass++;
@@ -368,20 +747,16 @@ function renderResults(files) {
 
   // Summary
   const total = totalPass + totalFail + totalWarn;
-  const verdict = totalFail > 0 ? "FAIL" : totalWarn > 0 ? "PASS WITH WARNINGS" : "PASS";
+  const verdict = totalFail > 0 ? "STRUCTURAL VIOLATIONS" : totalWarn > 0 ? "COMPLIANT WITH WARNINGS" : "STRUCTURALLY COMPLIANT";
   const verdictClass = totalFail > 0 ? "fail" : totalWarn > 0 ? "warn" : "pass";
   const verdictColor = totalFail > 0 ? "var(--red)" : totalWarn > 0 ? "var(--yellow)" : "var(--green)";
 
   md = `# Pipeline Prompt Validation Report\n\nGenerated: ${new Date().toISOString()}\n\n` +
     `## Verdict: ${verdict}\n\n` +
     `| Metric | Count |\n|---|---|\n` +
-    `| Total checks | ${total} |\n` +
-    `| Passed | ${totalPass} |\n` +
-    `| Failed | ${totalFail} |\n` +
-    `| Warnings | ${totalWarn} |\n\n` +
+    `| Total checks | ${total} |\n| Passed | ${totalPass} |\n| Failed | ${totalFail} |\n| Warnings | ${totalWarn} |\n\n` +
     md.split("\n").slice(3).join("\n");
 
-  // Store for export
   window.__lastReport = { md, verdict, total, totalPass, totalFail, totalWarn };
 
   const summaryHtml = `
@@ -391,48 +766,204 @@ function renderResults(files) {
         <div class="summary-stat"><div class="num" style="color:var(--green)">${totalPass}</div><div class="label">Passed</div></div>
         <div class="summary-stat"><div class="num" style="color:var(--red)">${totalFail}</div><div class="label">Failed</div></div>
         <div class="summary-stat"><div class="num" style="color:var(--yellow)">${totalWarn}</div><div class="label">Warnings</div></div>
+        <div class="summary-stat"><div class="num" style="color:var(--blue)">${totalFixable}</div><div class="label">Auto-Fixable</div></div>
+        <div class="summary-stat"><div class="num" style="color:#c084fc">${totalStubbable}</div><div class="label">Stubbable</div></div>
       </div>
       <div class="verdict-box ${verdictClass}">
         <div class="verdict-label" style="color:${verdictColor}">${verdict}</div>
         <div class="verdict-detail">${
-          totalFail > 0 ? "Fix all FAIL items before using these prompts. The Console will malfunction or produce unusable output." :
-          totalWarn > 0 ? "Prompts are functional but could be improved. Review warnings for quality." :
-          "All checks passed. Prompts are ready for production use with the Operator Console."
+          totalFail > 0 ? "Structural violations detected. Fix all FAIL items before using these prompts — the Console will malfunction or produce unusable output." :
+          totalWarn > 0 ? "Structurally compliant with warnings. Prompts are functional but review flagged items for quality." :
+          "No structural violations detected. Manual review still required for semantic correctness and content quality."
         }</div>
       </div>
-      <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
-        <button id="exportMd" style="background:var(--accent);color:#000;border:none;border-radius:8px;padding:8px 16px;font:700 12px/1 var(--mono);cursor:pointer">📄 Download Report (.md)</button>
-        <button id="exportJson" style="background:#93c5fd;color:#000;border:none;border-radius:8px;padding:8px 16px;font:700 12px/1 var(--mono);cursor:pointer">📋 Download Report (.json)</button>
+      <div class="repair-bar">
+        <button class="btn btn-export" id="exportMd">📄 Report (.md)</button>
+        <button class="btn btn-export-json" id="exportJson">📋 Report (.json)</button>
+        ${(totalFixable + totalStubbable) > 0 ? `
+          ${totalFixable > 0 ? `<span class="repair-count">⚡ ${totalFixable} auto-fix${totalFixable !== 1 ? "es" : ""}</span>` : ""}
+          ${totalStubbable > 0 ? `<span class="repair-count" style="color:#c084fc;border-color:rgba(192,132,252,0.3);background:rgba(192,132,252,0.06)">⊕ ${totalStubbable} stub${totalStubbable !== 1 ? "s" : ""}</span>` : ""}
+          <button class="btn btn-fixall" id="fixAllBtn">⚡ Apply All Fixes + Stubs</button>
+        ` : ""}
       </div>
+      <div id="fixAllResult" style="margin-top:12px"></div>
     </div>`;
 
   output.innerHTML = summaryHtml + `<div class="section"><div class="section-title">Per-Prompt Results</div>${html}</div>`;
   output.classList.add("visible");
 
-  // Bind export buttons
+  // ── Bind events ──
+
+  // Export Markdown
   document.getElementById("exportMd").addEventListener("click", () => {
-    const a = document.createElement("a");
-    a.href = "data:text/markdown;charset=utf-8," + encodeURIComponent(window.__lastReport.md);
-    a.download = "prompt_validation_report.md";
-    a.click();
+    download("prompt_validation_report.md", window.__lastReport.md, "text/markdown");
   });
 
+  // Export JSON
   document.getElementById("exportJson").addEventListener("click", () => {
-    // Rebuild structured JSON from last run
     const json = { generated: new Date().toISOString(), verdict: window.__lastReport.verdict, totals: { total: window.__lastReport.total, passed: window.__lastReport.totalPass, failed: window.__lastReport.totalFail, warnings: window.__lastReport.totalWarn }, stages: {}, crossPrompt: [] };
     for (const [stageKey, label] of Object.entries(stageLabels)) {
       if (!files[stageKey]) { json.stages[stageKey] = { label, status: "missing" }; continue; }
       json.stages[stageKey] = { label, checks: validatePrompt(stageKey, files[stageKey], "") };
     }
     json.crossPrompt = crossPromptChecks(files);
-    const a = document.createElement("a");
-    a.href = "data:application/json;charset=utf-8," + encodeURIComponent(JSON.stringify(json, null, 2));
-    a.download = "prompt_validation_report.json";
-    a.click();
+    download("prompt_validation_report.json", JSON.stringify(json, null, 2), "application/json");
+  });
+
+  // Fix All button
+  const fixAllBtn = document.getElementById("fixAllBtn");
+  if (fixAllBtn) {
+    fixAllBtn.addEventListener("click", () => {
+      let totalApplied = 0;
+      const resultLines = [];
+
+      for (const [stageKey, label] of Object.entries(stageLabels)) {
+        const text = originalFiles[stageKey];
+        if (!text) continue;
+        const { text: fixed, applied } = applyAllRepairs(stageKey, text);
+        if (applied.length > 0) {
+          repairedFiles[stageKey] = fixed;
+          repairLog[stageKey] = applied;
+          totalApplied += applied.length;
+          resultLines.push(`<strong>${label}</strong>: ${applied.length} fix${applied.length !== 1 ? "es" : ""}`);
+          markStageRepaired(stageKey);
+        }
+      }
+
+      if (totalApplied === 0) {
+        document.getElementById("fixAllResult").innerHTML =
+          `<div style="color:var(--muted);font-size:12px;text-align:center">No repairs were needed.</div>`;
+        return;
+      }
+
+      document.getElementById("fixAllResult").innerHTML =
+        `<div class="result-card" style="border-color:rgba(147,197,253,0.3)">
+          <div style="font:700 12px/1.4 var(--mono);color:var(--blue);margin-bottom:8px">⚡ ${totalApplied} repair(s) applied</div>
+          <div style="font-size:12px;color:var(--muted)">${resultLines.join("<br>")}</div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+            <button class="btn btn-download" id="dlAllRepaired">↓ Download All Repaired Files</button>
+            <button class="btn btn-download" style="background:var(--blue)" id="dlRepairedZip">↓ Download as ZIP (individual files)</button>
+          </div>
+        </div>`;
+
+      document.getElementById("dlAllRepaired").addEventListener("click", downloadAllRepaired);
+      document.getElementById("dlRepairedZip").addEventListener("click", downloadAllRepairedIndividual);
+
+      fixAllBtn.disabled = true;
+      fixAllBtn.textContent = "✓ All Applied";
+
+      // Disable individual fix and stub buttons
+      document.querySelectorAll(".btn-repair, .btn-stub").forEach(b => {
+        b.disabled = true;
+        b.textContent = b.dataset.rtype === "stub" ? "✓ Stubbed" : "✓ Fixed";
+        b.style.opacity = "0.4";
+      });
+    });
+  }
+
+  // Individual fix/stub buttons
+  document.querySelectorAll(".btn-repair, .btn-stub").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const stageKey = btn.dataset.stage;
+      const repairKey = btn.dataset.repair;
+      const checkName = btn.dataset.check;
+
+      // Use the current state (already repaired or original)
+      const currentText = repairedFiles[stageKey] || originalFiles[stageKey];
+      const result = REPAIR_FUNCTIONS[repairKey](stageKey, currentText);
+      if (!result) {
+        btn.textContent = "✓ Already OK";
+        btn.disabled = true;
+        btn.style.opacity = "0.4";
+        return;
+      }
+
+      repairedFiles[stageKey] = result.repaired;
+      if (!repairLog[stageKey]) repairLog[stageKey] = [];
+      repairLog[stageKey].push(result.description);
+
+      // Update UI for this check
+      const safeCheck = checkName.replace(/[^a-zA-Z0-9]/g, "_");
+      const checkRow = document.getElementById(`check-${stageKey}-${safeCheck}`);
+      if (checkRow) {
+        checkRow.className = "check-row repaired";
+        checkRow.querySelector(".icon").textContent = "⟳";
+      }
+      const detailRow = document.getElementById(`detail-${stageKey}-${safeCheck}`);
+      if (detailRow) {
+        detailRow.className = "detail repaired";
+        detailRow.textContent = `REPAIRED: ${result.description}`;
+      }
+      const previewBox = document.getElementById(`preview-${stageKey}-${repairKey}`);
+      if (previewBox) {
+        previewBox.style.borderColor = "rgba(74,222,128,0.3)";
+        previewBox.style.color = "var(--green)";
+        previewBox.textContent = "✓ " + result.description;
+      }
+
+      btn.textContent = btn.dataset.rtype === "stub" ? "✓ Stubbed" : "✓ Fixed";
+      btn.disabled = true;
+      btn.style.opacity = "0.4";
+
+      // Show per-stage download
+      markStageRepaired(stageKey);
+    });
   });
 }
 
-// ── File Handling ──
+
+// ══════════════════════════════════════════
+// ── Helpers ──
+// ══════════════════════════════════════════
+
+function escapeHtml(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function markStageRepaired(stageKey) {
+  const dlBtn = document.getElementById(`dl-${stageKey}`);
+  if (dlBtn) {
+    dlBtn.style.display = "inline-block";
+    dlBtn.classList.add("active");
+    dlBtn.onclick = () => {
+      const num = STAGE_NUMBERS[stageKey];
+      download(`${num}_repaired.txt`, repairedFiles[stageKey], "text/plain");
+    };
+  }
+}
+
+function download(filename, content, type) {
+  const a = document.createElement("a");
+  a.href = `data:${type};charset=utf-8,` + encodeURIComponent(content);
+  a.download = filename;
+  a.click();
+}
+
+function downloadAllRepaired() {
+  // Concatenate all repaired files with clear separators
+  let combined = "";
+  for (const [stageKey, text] of Object.entries(repairedFiles)) {
+    const num = STAGE_NUMBERS[stageKey];
+    combined += `${"═".repeat(60)}\n`;
+    combined += `FILE: ${num}_repaired.txt\n`;
+    combined += `${"═".repeat(60)}\n\n`;
+    combined += text + "\n\n";
+  }
+  download("all_repaired_prompts.txt", combined, "text/plain");
+}
+
+function downloadAllRepairedIndividual() {
+  // Download each repaired file individually (triggers multiple downloads)
+  for (const [stageKey, text] of Object.entries(repairedFiles)) {
+    const num = STAGE_NUMBERS[stageKey];
+    setTimeout(() => download(`${num}_repaired.txt`, text, "text/plain"), 100 * parseInt(num));
+  }
+}
+
+
+// ══════════════════════════════════════════
+// ── File Handling + Events ──
+// ══════════════════════════════════════════
 
 function processFiles(fileList) {
   const files = {};
@@ -451,7 +982,6 @@ function processFiles(fileList) {
   });
 }
 
-// ── Events ──
 const dropZone = document.getElementById("dropZone");
 const fileInput = document.getElementById("fileInput");
 dropZone.addEventListener("click", () => fileInput.click());

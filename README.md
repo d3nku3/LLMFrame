@@ -1,198 +1,238 @@
-# Multi-LLM Pipeline v5
+# Multi-LLM Coding Pipeline
 
-A structured, auditable pipeline for orchestrating software projects across multiple LLMs. Single HTML file. Zero dependencies. Fully offline. Works air-gapped.
+**A rigid, inspectable scaffold that forces LLMs through contract-bound stages instead of letting them improvise.**
 
-## What This Is
+MIT License · Zero dependencies · Fully offline · No backend, no accounts, no telemetry · Requires a Chromium-based browser (Chrome, Edge, or Brave)
 
-The Multi-LLM Pipeline treats language models as unreliable workers who produce dramatically better results when given rigid structure, explicit contracts, and external verification.
+---
 
-Instead of dumping an entire project into one long chat session and hoping for the best, the pipeline splits work into six specialized stages — each run in a separate LLM conversation, each with a different role, each producing artifacts that are versioned, fingerprinted, and validated by the Operator Console.
+## What this is
 
-A human operator sits between every stage. Nothing runs automatically. You read every output and decide whether to proceed.
+A structured multi-stage workflow that splits LLM-assisted work into six stages with frozen contracts, mandatory review gates, and traceable artifacts. A human operator sits between every stage, routing work to the most suitable model and verifying outputs against explicit acceptance criteria.
 
-## Why This Exists
+It is not an autonomous agent. It is the opposite — a system that treats LLMs as unreliable workers who produce dramatically better results when given clear boundaries, explicit contracts, and external verification.
 
-Long LLM sessions drift. The model starts strong, then gradually mutates the task, fills gaps with fabricated details, and produces outputs that look correct but silently diverge from what you asked for. When something breaks at step 40, you cannot tell whether the error was introduced at step 3 or step 37.
+## What problem it solves
 
-The pipeline forces three things:
+Long LLM sessions drift. Requirements mutate silently. Models invent assumptions they never state. When something breaks at step 40, you cannot tell whether the error was introduced at step 3 or step 37. There is no audit trail, no contract, no way to verify what was agreed versus what was delivered.
 
-- **Contract closure before execution.** The architecture is frozen before anyone writes anything. You cannot silently change an interface mid-project.
-- **Separation of concerns.** The model that specifies is not the model that implements is not the model that reviews. Role drift is structurally impossible.
-- **Traceable failure.** Every artifact has a version, a fingerprint, and a parent lineage. Every review is cryptographically bound to the exact implementation it evaluated. When something fails, you know exactly where.
+This pipeline eliminates that failure mode by enforcing:
 
-## Requirements
+- **Separation of concerns.** The model that defines requirements is not the model that implements them, is not the model that reviews them.
+- **Contract closure before execution.** Nothing gets built until the structural rules are frozen and explicitly accepted.
+- **Traceable artifacts.** Every stage produces a named, versioned, fingerprinted artifact. Every review is bound to the exact version it reviewed.
+- **Controlled repair.** When something fails, exactly one package gets reworked — not the entire project regenerated from scratch.
 
-- A **Chromium-based browser** (Chrome, Edge, Brave, Arc)
-- Access to at least one LLM (ChatGPT, Claude, Gemini, local models — anything that accepts text)
+## What this looks like in practice
 
-No server. No npm. No Python. No Docker. No accounts.
+In a real project (a Windows multi-monitor video screensaver, 11 packages), the Architecture Spec defined an interface `assess_media()` returning a simple pass/fail capability assessment. During implementation, Package T10 needed full media probe data — codec, HDR status, duration — that the interface did not provide.
 
-## The Six Stages
+**In a normal long chat:** The model would silently invent the missing fields, or restructure the interface to fit. You would discover the inconsistency days later during integration.
 
-| Stage | Role | Artifact Produced |
-|---|---|---|
-| 01 | **Requirements Engineer** | Master Briefing — frozen requirements with stable IDs |
-| 02 | **Technical Architect** | Architecture Spec — components, interfaces, invariants, dependency map |
-| 03 | **Project Orchestrator** | Work Packages — bounded tasks with explicit contracts, routed to models |
-| 04 | **Module Implementer** | Deliverables + Delivery Report — one package at a time |
-| 05 | **Code Reviewer** | Review Report — ACCEPT or REWORK with evidence-classified findings |
-| 06 | **Merge Coordinator** | Integration Report — merged output with consistency verification |
+**In this pipeline:** The implementer correctly reported `Status: Blocked` because the Work Package Contract explicitly listed which interfaces it was allowed to consume. The Console showed T10 as blocked, downstream packages were marked pending, and the fix was a targeted Architecture Spec revision — one interface change, two packages re-implemented, everything else untouched.
 
-Each stage is a separate LLM conversation. A fresh context window for every stage prevents accumulated drift.
+The scaffold did not prevent the specification gap. It made the gap visible at the exact point where it mattered, with a clear path to resolution.
 
-## Repository Structure
+## What is included
+
+| Component | Description |
+|---|---|
+| **Operator Console** | Browser-based control center (single HTML + JS modules). Tracks state, manages artifacts, enforces workflow, renders dependency graphs. Zero install — double-click and go. |
+| **6 Coding Prompts** | Battle-tested prompt set for software development projects. The reference implementation. |
+| **6 Domain-Agnostic Templates** | Generic versions with `[DOMAIN:]` markers for any field — book manuscripts, structural engineering, legal documents, policy writing. |
+| **Pipeline Prompt Compiler** | Meta-prompt that adapts the templates to a new domain. |
+| **Pipeline Prompt Validator** | Deterministic HTML tool that audits compiled prompts for structural completeness and Console compatibility. Includes auto-repair for fixable issues (missing tags, section stubs, residual markers) and per-finding or fix-all workflows with repaired file download. |
+| **Pipeline Protocol** | Single-source-of-truth JSON file (`pipeline_protocol_v1.json`) defining all frozen tokens, required sections, contract ID prefixes, escalation patterns, greeting patterns, cross-prompt handoff checks, and stage metadata. Consumed by the Validator at runtime; can be hot-swapped via the UI. |
+| **Conformance Fixtures** | Minimal test prompts (valid and invalid) for regression-testing the Validator after protocol or prompt changes. |
+| **Pipeline Analytics Dashboard** | Interactive visualization of project data — artifact timeline, package status, audit event distribution. Standalone HTML, offline, exportable. |
+
+## Who this is for
+
+- **Solo developers** doing long, brittle coding sessions where a single wrong assumption cascades into hours of rework.
+- **Users of smaller local models** (7B–70B) that benefit most from rigid structure and explicit contracts.
+- **Privacy-sensitive or air-gapped environments** where sending data to cloud APIs is not an option.
+- **Teams that want inspectable handoffs** instead of autonomous agent chaos — where knowing *why* something was built matters as much as *what* was built.
+- **Non-programmers** who orchestrate LLM work and need discipline without writing code.
+
+## The six stages
 
 ```
-├── 01_Requirements_Engineer_v5.txt      # Stage 01 prompt
-├── 02_Technical_Architect_v5.txt        # Stage 02 prompt
-├── 03_Project_Orchestrator_v5.txt       # Stage 03 prompt
-├── 04_Module_Implementer_v5.txt         # Stage 04 prompt
-├── 05_Code_Reviewer_v5.txt              # Stage 05 prompt
-├── 06_Merge_Coordinator_v5.txt          # Stage 06 prompt
-├── 07_End_User_Operating_Guide_v5.txt   # Full pipeline rules and procedures
-├── 08_Operator_Run_Layer_v5.txt         # Decision companion for operators
-├── 09_Operator_Console_v5.html          # Console entry point
-├── js/                                  # Console JavaScript modules (10 files)
-│   ├── 00_constants.js
-│   ├── 01_utilities.js
-│   ├── 02_state.js
-│   ├── 03_persistence.js
-│   ├── 04_manifest.js
-│   ├── 05_workflow.js
-│   ├── 06_builders.js
-│   ├── 07_render.js
-│   ├── 08_events.js
-│   └── 09_init.js
-├── console_hardened/                    # CSP-hardened build (air-gap certified)
-│   ├── hardened_console.html
-│   ├── 00_constants.js – 09_init.js
-│   └── 10_chartjs_inline.js            # Chart.js bundled (no CDN)
-├── pipeline_agnostic_templates/         # Domain-agnostic prompt set
-│   ├── 01–06 agnostic role prompts
-│   ├── Pipeline_Prompt_Analyzer.txt
-│   └── Pipeline_Prompt_Compiler_v2.txt
-├── domain_mapping.md                    # Coding → Agnostic term mapping
-├── pipeline_analytics.html              # Interactive project analytics dashboard
-├── pipeline_prompt_validator.html       # Deterministic prompt audit tool
-├── Pipeline_Prompt_Analyzer.txt         # LLM-based prompt analysis tool
-├── Pipeline_Prompt_Compiler.txt         # Domain compiler (v1)
-├── Pipeline_Prompt_Compiler_v2.txt      # Domain compiler (v2)
-├── QUICKSTART.md                        # 15-minute walkthrough
-├── LICENSE                              # MIT
-└── README.md                            # This file
+Stage 01          Stage 02            Stage 03             Stage 04          Stage 05          Stage 06
+Requirements  →   Architecture    →   Orchestration    →   Implementation →  Review        →   Integration
+Engineer          Architect           Orchestrator         Author             Reviewer          Coordinator
+
+   ↓                 ↓                   ↓                    ↓                 ↓                 ↓
+Master            Architecture       Work Packages        Deliverables      Review Report     Integration
+Briefing          Spec               + Execution          + Delivery        + ACCEPT/REWORK   Report
+                  + Frozen           Checklist            Report                              + Merge Verdict
+                  Contracts
 ```
 
-## The Operator Console
+Each arrow is a human checkpoint. The operator reads, verifies, and decides whether to proceed or escalate. No stage runs automatically.
 
-The Console (`09_Operator_Console_v5.html` + `js/` folder) is the operational backbone. Double-click the HTML to open it.
+**→ See [QUICKSTART.md](QUICKSTART.md) for a complete 15-minute walkthrough with a real 3-package project.**
 
-### What It Does
+## Why no dependencies
 
-- **Artifact management.** Every artifact gets a unique ID, revision number, and SHA-256 content fingerprint. All stored as human-readable JSON in your workspace folder.
-- **Stage enforcement.** A state machine prevents skipping stages or submitting artifacts to the wrong gate.
-- **Review binding.** A cryptographic fingerprint ties each review to the exact implementation it evaluated. If the implementation changes after review, the review is automatically stale.
-- **Plausibility checks.** Content validation before every save — wrong-stage markers, missing keywords, truncation detection, suspiciously short outputs.
-- **Interactive lineage graph.** SVG visualization of all artifacts, their relationships, blocked packages (pulsing red), and rework cycle counts.
-- **Append-only audit log.** Every action logged with timestamp. Immutable project history.
-- **Analytics dashboard.** One-click generates an interactive dashboard from project data — artifact timelines, package status grids, event distribution.
+The Console is a single HTML file with 10 JavaScript modules. No npm, no build step, no framework, no server. It runs from a local folder in any modern browser.
 
-### Zero Trust Architecture
+This is intentional:
 
-- **Zero external fetch calls.** The Console never contacts any server. Your data stays on your filesystem.
-- **Zero build steps.** No Webpack, no Vite, no transpilation. The source code is the runtime code.
-- **Zero accounts.** No login, no tokens, no authentication.
-- **Zero npm.** No `node_modules`, no supply chain attack surface.
-- **Full offline operation.** All state lives in your workspace folder via the File System Access API.
+- **No hidden fetch calls.** The Console never contacts any server. Your data stays on your machine.
+- **No trust surface.** There is nothing to audit except the files you can read. No minified bundles, no transitive dependencies, no supply chain risk.
+- **Offline by default.** The hardened version works fully air-gapped. Even the analytics dashboard has Chart.js inlined.
+- **Trivially portable.** Copy the folder. That's deployment.
 
-The entire codebase is auditable in an afternoon because there is nothing hidden behind abstractions.
+The Pipeline Analytics Dashboard is equally self-contained: one HTML file, 227KB, zero CDN dependencies.
 
-### Hardened Build
+## What the Console actually does
 
-The `console_hardened/` directory contains a dedicated build for air-gapped and classified environments:
+The Console is not a clipboard manager. It is the operational backbone:
 
-- Content Security Policy blocks all remote resource loading at the browser level
-- Chart.js bundled inline (no CDN dependency)
-- System fonts only (no Google Fonts)
-- Print-to-PDF export (no html2canvas)
-- Full feature parity with the standard build
+- **Artifact tracking.** Every artifact gets a unique ID, revision number, content fingerprint, creation timestamp, and parent lineage.
+- **Stage enforcement.** The workflow state machine prevents skipping stages or submitting work to the wrong gate.
+- **Manifest maintenance.** A machine-readable `artifact_manifest.json` tracks every artifact ever produced, its status (current/superseded/missing), and its relationships.
+- **Audit logging.** Every operator action is recorded in `audit_log.ndjson` — append-only, timestamped, machine-parseable.
+- **Review binding.** A cryptographic fingerprint ties each review to the exact implementation version it evaluated. If the implementation changes, the review is automatically marked stale.
+- **Dependency graph.** Interactive SVG visualization showing all artifacts, their lineage, blocked packages, and cascading invalidation.
+- **Plausibility checks.** Content validation before every save — wrong-stage markers, missing keywords, truncation detection.
+- **Domain pack switching.** Hot-swap between pre-compiled prompt sets (coding, legal, book) via a `prompts/` folder.
 
-| Property | Standard Build | Hardened Build |
-|---|---|---|
-| Network calls | None (by behavior) | None (by CSP enforcement) |
-| Font loading | System fonts | System fonts (remote blocked) |
-| Chart rendering | Chart.js CDN | Chart.js inlined |
-| Dashboard export | html2canvas | Print-to-PDF |
-| Air-gap certified | Yes | Yes (policy-enforced) |
+## Screenshots
 
-## Tooling
+| Console — guided workflow with rework routing | Lineage graph — T10 blocked, downstream pending |
+|---|---|
+| ![Console](docs/screenshot_console.png) | ![Lineage](docs/screenshot_lineage.png) |
 
-| Tool | Purpose | Dependencies |
-|---|---|---|
-| **Operator Console** | Stage tracking, artifacts, workflow enforcement | None |
-| **Hardened Console** | Same + CSP + inline Chart.js | None |
-| **Analytics Dashboard** | Interactive project visualization | None |
-| **Prompt Validator** | Deterministic audit of compiled prompts | None |
-| **Prompt Compiler** | Adapts prompts to new domains (LLM-based) | One LLM conversation |
-| **Prompt Analyzer** | Structural analysis of prompt sets (LLM-based) | One LLM conversation |
+| Analytics Dashboard — package status, audit events, activity timeline |
+|---|
+| ![Analytics](docs/screenshot_analytics.png) |
 
-Everything is a single file or a small folder. Everything works offline.
+## What a workspace looks like on disk
 
-## Domain-Agnostic Templates
+After a pipeline run, the workspace folder contains everything needed to reconstruct the full project history:
 
-The `pipeline_agnostic_templates/` directory contains a domain-neutral version of all six role prompts. These replace coding-specific terminology (modules, functions, imports) with generic equivalents (components, operations, dependencies) while preserving all Console-parsed tokens and pipeline structure.
+```
+my-project/
+├── stage01/
+│   └── master_briefing_r1.txt
+├── stage02/
+│   └── architecture_spec_r1.txt
+├── stage03/
+│   ├── master_orchestration_r1.txt
+│   ├── WP01_core_module_Work_Package.txt
+│   ├── WP02_parser_Work_Package.txt
+│   └── WP03_cli_Work_Package.txt
+├── stage04/
+│   ├── WP01_implementation.txt
+│   ├── WP02_implementation.txt
+│   └── WP03_implementation.txt
+├── stage05/
+│   ├── WP01_review_report.txt
+│   ├── WP02_review_report.txt
+│   └── WP03_review_report.txt
+├── stage06/
+│   └── integration_report_r1.txt
+├── artifact_manifest.json        ← every artifact, its fingerprint, revision, status, lineage
+├── audit_log.ndjson              ← append-only log of every operator action with timestamps
+├── workspace_state.json          ← current pipeline state, stage positions, review bindings
+└── prompts/
+    └── coding/
+        ├── 01_Requirements_Engineer.txt
+        └── ...
+```
 
-Use the Prompt Compiler to adapt the agnostic templates to your domain (legal, book authoring, hardware design, research — anything with decomposable deliverables).
+The manifest and audit log are machine-readable. Nothing is hidden in browser storage — if you lose the Console, the workspace folder is the complete record.
 
-See `domain_mapping.md` for the complete term mapping between the coding and agnostic prompt sets.
+## What reproducibility means here
 
-## Model Recommendations
+This scaffold provides:
 
-The pipeline is model-agnostic. Any LLM that accepts text prompts works. Practical guidance:
+- **Reproducible process shape.** Every run follows the same stages, the same contracts, the same review gates.
+- **Reproducible artifacts.** Every output has a named type, a version, a fingerprint, and traceable parent artifacts.
+- **Inspectable runs.** The audit log and manifest make it possible to reconstruct exactly what happened, when, and why.
 
-| Stage | Recommended Model | Why |
-|---|---|---|
-| 01 Requirements | Claude, GPT-4 | Needs strong interview and structuring ability |
-| 02 Architecture | Claude | Best at identifying invariants and boundary conditions |
-| 03 Orchestration | Claude, GPT-4 | Complex decomposition with dependency awareness |
-| 04 Implementation | ChatGPT, Gemini, local models | Bulk code generation, speed matters more than analysis |
-| 05 Review | Claude | Critical analysis, finding what's wrong, evidence classification |
-| 06 Merge | GPT-4, Claude | Cross-package consistency, conflict detection |
+It does **not** provide identical model outputs. LLMs are non-deterministic. The same prompt with the same model will produce different text. The scaffold makes the *process* deterministic, not the *content*.
 
-You can use a single model for everything. You get better results by routing stages to models that match the cognitive demands.
+## Failure terms
 
-## Who This Is For
+To avoid misunderstanding, here is what specific terms mean in this project:
 
-- Solo developers running multi-file LLM-assisted projects
-- Users of local models (7B–70B) who benefit most from rigid external structure
-- Privacy-sensitive or air-gapped environments where cloud tools are banned
-- Teams that want inspectable handoffs instead of autonomous agent chaos
-- Non-programmers orchestrating LLM work with the domain-agnostic templates
+| Term | Definition |
+|---|---|
+| **Requirement drift** | The project's goals silently change between stages because no frozen contract enforces the original intent. |
+| **Role drift** | A model tasked with implementation starts making architectural decisions, or a reviewer starts redesigning instead of verifying. |
+| **Assumption creep** | A model fills gaps in the specification with unstated assumptions that downstream stages inherit as fact. |
+| **Fabricated details** | A model invents specific technical details (function signatures, data formats, API contracts) that were never specified. |
+| **Contract breakage** | A deliverable violates a frozen contract from the Architecture Spec — wrong interface, wrong dependency direction, wrong shared definition. |
 
-## What This Is NOT
+The scaffold does not prevent hallucination. It makes hallucination **inspectable** — caught at review gates instead of discovered after integration.
 
-- **Not an autonomous agent.** The human-in-the-loop is the point, not a limitation.
-- **Not a model improvement.** Models still hallucinate. This makes hallucination inspectable, not impossible.
-- **Not always worth the overhead.** A 20-line script does not need 6 stages. The Requirements Engineer explicitly recommends "SINGLE PASS SUFFICIENT" for simple tasks.
+## When this is too much
 
-## Getting Started
+This scaffold adds ceremony. For a 20-line script or a quick prototype, it is overkill.
 
-See **[QUICKSTART.md](QUICKSTART.md)** for a guided 15-minute walkthrough of your first 3-package project.
+Use the full pipeline when:
 
-For the full pipeline rules, evidence classification system, and go/no-go criteria, read `07_End_User_Operating_Guide_v5.txt`.
+- The task has 3+ interacting components
+- The cost of errors is high (hours of rework, not minutes)
+- You need to prove what was built matches what was specified
+- You are using models that drift when given long, loosely structured prompts
 
-For decision support during execution (when to rework, when to escalate, when to proceed), read `08_Operator_Run_Layer_v5.txt`.
+A lighter mode (single-pass, no decomposition) is possible for simpler tasks. The Requirements Engineer's Complexity Assessment explicitly recommends "SINGLE PASS SUFFICIENT" when appropriate.
 
-## Contributing
+## Honest limitations
 
-Contributions are welcome. Areas where feedback is especially valuable:
+- **A wrong early artifact can poison downstream work.** Rigidity preserves decisions — including bad ones. The review and validation gates exist to catch errors earlier, not to pretend that structure makes wrong inputs right.
+- **Overhead scales with project size.** 11 packages means 11 implementations, 11 reviews, and a merge pass. For small projects, this is expensive.
+- **The operator is the weakest link.** If the human rubber-stamps a review without reading it, the scaffold cannot help.
+- **Model quality still matters.** The scaffold makes bad models fail more visibly, but it does not make them competent.
 
-- **Stage boundaries** — do the six stages feel right, or should something be split/merged?
-- **Contract rigidity** — is the freeze-before-execute model too rigid or not rigid enough?
-- **Non-coding domains** — does the agnostic template set work for your field?
-- **Console UX** — what's confusing, what's missing, what breaks your workflow?
+## Built with this pipeline
 
-Please open an issue or submit a pull request. See the issue templates for bug reports, feature requests, and usage questions.
+| Project | Packages | Models Used | Notes |
+|---|---|---|---|
+| **BrickGen** — CLI tool converting STL files to LEGO-compatible brick models with PDF build instructions | 7 | Claude (architecture, review), ChatGPT (implementation) | MVP completed through full pipeline lifecycle including rework cycles |
+| **Windows Multi-Monitor Video Screensaver** | 11 | Claude, ChatGPT, Gemini | Largest project to date; surfaced a real interface specification gap caught at the Blocked-State gate (see example above) |
+| **Pipeline Operator Console** | Self-hosted | Claude, ChatGPT | The Console was rebuilt through its own pipeline — the scaffold producing its own tooling |
+
+## Project status
+
+This is a **personal toolkit shared publicly**. It is actively maintained and used in production by its author. Community contributions are welcome (see CONTRIBUTING.md), but response times may vary.
+
+| Component | Status |
+|---|---|
+| Operator Console | Stable. Used daily in multi-project workflows. |
+| Coding Prompts (6) | Stable. Battle-tested across multiple projects. |
+| Domain-Agnostic Templates | Stable. Tested via Prompt Compiler + Validator. |
+| Prompt Compiler v2 | Stable. |
+| Prompt Validator | Stable. Protocol-driven with auto-repair and conformance fixtures. |
+| Pipeline Protocol v1 | Stable. Validator-verified against v5 prompts. |
+| Analytics Dashboard | Stable. |
+| Hardened Console | Stable. Air-gap tested. |
+
+## Roadmap
+
+**Current scope:**
+- Full 6-stage pipeline with operator console
+- Multi-model routing (Claude, ChatGPT, Gemini, local models)
+- Domain-agnostic templates for any field
+- Offline analytics and validation tooling
+- Quickstart worked example (minimal 3-package project)
+- Pipeline Protocol as single source of truth for prompt validation
+
+**Next improvements:**
+- Partial/clustered merge for large projects
+- Normalized uncertainty reporting (each stage outputs assumptions, unknowns, unresolved decisions)
+- Community-contributed domain packs
+- Rework-counter metrics in Analytics Dashboard (per-package 04→05→04 ping-pong tracking)
+- Console validation against Pipeline Protocol schemas
+
+**Intentionally not in scope (yet):**
+- Autonomous agent mode (the human-in-the-loop is the point)
+- Cloud sync or multi-user collaboration
+- Model API integration (the Console is model-agnostic by design)
 
 ## License
 
-[MIT](LICENSE) — use it, fork it, adapt it.
+MIT License. See [LICENSE](LICENSE) for full text. Use it, fork it, adapt it, sell products built with it. Attribution appreciated but not required.
