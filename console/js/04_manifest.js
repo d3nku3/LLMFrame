@@ -55,7 +55,8 @@ function artifactTypeLabel(artifactType) {
     implementation_output: "Implementation output",
     implementation_file: "Implementation file",
     review_report: "Review report",
-    merge_result: "Integration Report"
+    merge_result: "Integration Report",
+    cluster_merge_output: "Cluster merge output"
   };
   return map[artifactType] || artifactType.replace(/_/g, " ");
 }
@@ -73,7 +74,8 @@ function artifactLogicalKeyFor(options) {
     work_package: `stage3/work_package/${packageKey}`,
     implementation_output: `stage4/implementation_output/${packageKey}`,
     review_report: `stage5/review_report/${packageKey}`,
-    merge_result: "stage6/merge_result"
+    merge_result: "stage6/merge_result",
+    cluster_merge_output: `stage6/cluster_merge/${packageKey}`
   };
   return map[options.artifactType] || `${options.artifactType}/${packageKey}`;
 }

@@ -42,9 +42,13 @@ The scaffold did not prevent the specification gap. It made the gap visible at t
 | **6 Domain-Agnostic Templates** | Generic versions with `[DOMAIN:]` markers for any field — book manuscripts, structural engineering, legal documents, policy writing. |
 | **Pipeline Prompt Compiler** | Meta-prompt that adapts the templates to a new domain. |
 | **Pipeline Prompt Validator** | Deterministic HTML tool that audits compiled prompts for structural completeness and Console compatibility. Includes auto-repair for fixable issues (missing tags, section stubs, residual markers) and per-finding or fix-all workflows with repaired file download. |
-| **Pipeline Protocol** | Single-source-of-truth JSON file (`pipeline_protocol_v1.json`) defining all frozen tokens, required sections, contract ID prefixes, escalation patterns, greeting patterns, cross-prompt handoff checks, and stage metadata. Consumed by the Validator at runtime; can be hot-swapped via the UI. |
+| **Pipeline Protocol** | Single-source-of-truth JSON file (`pipeline_protocol_v1.json`, currently v1.3.1) defining all frozen tokens, required sections, contract ID prefixes, escalation patterns, greeting patterns, cross-prompt handoff checks, and stage metadata. Drives the Validator, Analyzer, and Console — all three consumers are verified against the same protocol version. Can be hot-swapped via the Validator UI. |
 | **Conformance Fixtures** | Minimal test prompts (valid and invalid) for regression-testing the Validator after protocol or prompt changes. |
 | **Pipeline Analytics Dashboard** | Interactive visualization of project data — artifact timeline, package status, audit event distribution. Standalone HTML, offline, exportable. |
+| **Pipeline Prompt Analyzer** | Deep-analysis prompt for cross-prompt consistency checking — frozen token coverage, contract prefix alignment, escalation pattern verification. Protocol-aligned at v1.3.1. |
+| **Technical Report Domain Pack** | Pre-compiled domain pack for non-coding use (technical reports, research documents). Proves the agnostic templates work outside software development. |
+
+**→ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full three-layer system design (Prompt Layer, Protocol Layer, Operator Layer) and which rules are enforced vs. guidance.**
 
 ## Who this is for
 
@@ -96,7 +100,8 @@ The Console is not a clipboard manager. It is the operational backbone:
 - **Review binding.** A cryptographic fingerprint ties each review to the exact implementation version it evaluated. If the implementation changes, the review is automatically marked stale.
 - **Dependency graph.** Interactive SVG visualization showing all artifacts, their lineage, blocked packages, and cascading invalidation.
 - **Plausibility checks.** Content validation before every save — wrong-stage markers, missing keywords, truncation detection.
-- **Domain pack switching.** Hot-swap between pre-compiled prompt sets (coding, legal, book) via a `prompts/` folder.
+- **Protocol drift detection.** `checkPlausibilityProtocolAlignment()` — callable from browser DevTools — verifies that the Console's hardcoded stage labels, frozen tokens, and contract prefixes still match the current Pipeline Protocol version.
+- **Domain pack switching.** Hot-swap between pre-compiled prompt sets (coding, technical reports, legal, book) via a `prompts/` folder. The Console auto-detects packs and offers a selector in the workspace indicator.
 
 ## Screenshots
 
@@ -207,7 +212,8 @@ This is a **personal toolkit shared publicly**. It is actively maintained and us
 | Domain-Agnostic Templates | Stable. Tested via Prompt Compiler + Validator. |
 | Prompt Compiler v2 | Stable. |
 | Prompt Validator | Stable. Protocol-driven with auto-repair and conformance fixtures. |
-| Pipeline Protocol v1 | Stable. Validator-verified against v5 prompts. |
+| Pipeline Protocol v1 | Stable at v1.3.1. All consumers (Validator, Analyzer, Console) verified aligned. |
+| Pipeline Prompt Analyzer | Stable. Protocol-aligned at v1.3.1. |
 | Analytics Dashboard | Stable. |
 | Hardened Console | Stable. Air-gap tested. |
 
@@ -217,16 +223,17 @@ This is a **personal toolkit shared publicly**. It is actively maintained and us
 - Full 6-stage pipeline with operator console
 - Multi-model routing (Claude, ChatGPT, Gemini, local models)
 - Domain-agnostic templates for any field
+- Domain pack system with auto-detection and hot-swap (Technical Report pack included as non-coding reference)
 - Offline analytics and validation tooling
 - Quickstart worked example (minimal 3-package project)
-- Pipeline Protocol as single source of truth for prompt validation
+- Pipeline Protocol as single source of truth — drives Validator, Analyzer, and Console
+- Console validation against Pipeline Protocol via `checkPlausibilityProtocolAlignment()` assertion
+- Clustered merge for large projects (design spec complete, Console event handlers implemented — first production use pending)
 
 **Next improvements:**
-- Partial/clustered merge for large projects
 - Normalized uncertainty reporting (each stage outputs assumptions, unknowns, unresolved decisions)
 - Community-contributed domain packs
 - Rework-counter metrics in Analytics Dashboard (per-package 04→05→04 ping-pong tracking)
-- Console validation against Pipeline Protocol schemas
 
 **Intentionally not in scope (yet):**
 - Autonomous agent mode (the human-in-the-loop is the point)

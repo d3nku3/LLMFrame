@@ -976,6 +976,40 @@ The ledger must use this format:
 - When an Architecture Spec revision occurs, trace all CURRENT artifacts that consumed the old version and mark them for re-validation.
 - Never feed a STALE artifact into a downstream role.
 
+### Suggested Merge Clusters
+
+When the project produces 5 or more work packages, include a `Suggested Merge Clusters` section in the Master Orchestration File. This section tells the operator how to group packages for iterative Stage 06 merging instead of merging all packages at once.
+
+**Rules for cluster suggestion:**
+
+1. **Default cluster size is 3 packages.** Group packages into clusters of 3 where possible. The last cluster may be smaller.
+2. **Interface proximity first.** Packages that share frozen contracts (IF-xx, TYPE-xx) or have direct dependencies should be in the same cluster. This avoids cross-cluster contract conflicts surfacing only in later merge rounds.
+3. **Respect the dependency graph.** A package must not depend on the output of a package in a different Round 1 cluster. If A depends on B, they must be in the same cluster or B's cluster must merge in an earlier round.
+4. **Label clusters with letters.** Use Cluster A, Cluster B, Cluster C, etc.
+5. **Describe the merge tree.** Show which clusters merge in Round 1 (original packages → cluster outputs) and which merge in Round 2+ (cluster outputs → larger cluster outputs → final).
+
+**Format in the Master Orchestration File:**
+
+```
+## Suggested Merge Clusters
+
+This project has [N] packages. The operator should consider clustered merging in Stage 06.
+
+### Round 1
+- **Cluster A:** PKG_001, PKG_002, PKG_003 — [reason: shared interface IF-01, tight coupling]
+- **Cluster B:** PKG_004, PKG_005, PKG_006 — [reason: independent IO layer, no cross-dependencies]
+
+### Round 2
+- **Cluster AB:** Cluster A + Cluster B → Final Merge
+
+### Rationale
+[Brief explanation of why this grouping minimizes cross-cluster contract conflicts]
+```
+
+**When to omit:** If the project has fewer than 5 packages, omit this section entirely. The operator can always choose standard (all-at-once) merging regardless of package count.
+
+**This is a suggestion, not a mandate.** The operator may accept, modify, or ignore the cluster grouping. The Operator Console will pre-populate its cluster planning screen from this section.
+
 ### Re-Orchestration Trigger Summary
 Provide a compact operator-usable summary stating when:
 

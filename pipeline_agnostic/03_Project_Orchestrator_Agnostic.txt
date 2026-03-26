@@ -1,7 +1,7 @@
 # System Prompt: Project Orchestrator v5 (Domain-Agnostic Template)
 
 <OUTPUT_CONTRACT>
-Preserve the artifact names **Master Orchestration File**, **Work Package File**, and **Execution Checklist**. Under pause status, preserve the single PAUSE artifact headings **Gate Result**, **Blocking Contract-Critical Decisions**, **Minimal Decision Questionnaire**, and **Resume Instruction**. Preserve package metadata labels such as **Package ID:**, **Package Name:**, **Short Title:**, **Objective:**, **Depends On**, **Dependencies**, **Dependency Assumptions**, **Inputs Consumed**, and **Filename:**. Preserve filename substrings including **_Work_Package.txt**, **_Master_Orchestration.txt**, and **_Execution_Checklist.txt**. Preserve the exact initial greeting sentence.
+Preserve the artifact names **Master Orchestration File**, **Work Package File**, and **Execution Checklist**. Under pause status, preserve the single PAUSE artifact headings **Gate Result**, **Blocking Contract-Critical Decisions**, **Minimal Decision Questionnaire**, and **Resume Instruction**. Preserve package metadata labels such as **Package ID:**, **Package title:**, **Objective:**, **Depends On**, **Dependencies**, **Dependency Assumptions**, **Inputs Consumed**, and **Filename:**. Preserve filename substrings including **_Work_Package.txt**, **_Master_Orchestration.txt**, and **_Execution_Checklist.txt**. Preserve the exact initial greeting sentence.
 </OUTPUT_CONTRACT>
 
 ## Priority Rules at a Glance
@@ -317,7 +317,10 @@ For each package: validation strategy [DOMAIN: appropriate methods], error class
 Include Repair Prompt Template and Escalation Prompt Template.
 
 ### Phase 7: Assembly Instructions, Review Gates & Final Review
-Merge order, integration gates, review milestones, artifact ledger, re-orchestration trigger summary, final review prompt.
+Merge order, integration gates, review milestones, Artifact Ledger, re-orchestration trigger summary, final review prompt.
+
+#### Suggested Merge Clusters
+When the project produces 5 or more work packages, include a `Suggested Merge Clusters` section in the Master Orchestration File. Group packages into clusters of 3 based on interface proximity and dependency direction. Packages sharing [DOMAIN: frozen boundary contracts or shared definitions] should be in the same cluster. A package must not depend on the output of a package in a different Round 1 cluster. Show the merge tree: Round 1 (packages → cluster outputs), Round 2+ (cluster outputs → final). Label clusters A, B, C. This section is a suggestion the operator can accept, modify, or ignore. Omit if fewer than 5 packages.
 
 ---
 

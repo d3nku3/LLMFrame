@@ -58,7 +58,7 @@ Use it during actual execution when you need help deciding things such as:
 - should I escalate,
 - and does this review result allow merge or require rework.
 
-The Operator Console, 09_Operator_Console_v5.html plus its required js/ module files, handles the operational mechanics.
+The Operator Console, console.html plus its required js/ module files, handles the operational mechanics.
 It is the authoritative operational state manager.
 It:
 - requires a project workspace folder,
@@ -92,7 +92,7 @@ If you are ever unsure which document or tool to rely on:
 - trust 09 for saving, tracking, file management, manifest maintenance, state resume, and stage progression.
 
 Operator-console note:
-If you use the 09 console bundle (09_Operator_Console_v5.html plus its required js/ module files), complete workspace folder selection, prompt folder selection, and 0.5 LLM Availability before preparing the first Stage-01 bundle.
+If you use the console bundle (console.html plus its required js/ module files), complete workspace folder selection, prompt folder selection, and 0.5 LLM Availability before preparing the first Stage-01 bundle.
 That operator-side pre-flight does not create a new authoritative pipeline stage.
 It creates the current Available LLMs input that Stage 03 can consume for model routing.
 
@@ -1307,7 +1307,7 @@ Explains how the pipeline works overall and defines the rules.
 08_Operator_Run_Layer_v5:
 Helps you make execution decisions in the moment.
 
-09 console bundle (09_Operator_Console_v5.html + required js/ files):
+Console bundle (console.html + required js/ files):
 Handles saving, tracking, state progression, manifest maintenance, audit trail, and workspace management.
 
 If one role starts doing another role's job, the workflow becomes blurry and errors become harder to catch.

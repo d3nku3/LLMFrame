@@ -1,7 +1,7 @@
 OPERATOR RUN LAYER v5
 Decision Companion for Console-Assisted Execution
 Language: English
-Status: Decision companion layer only — authoritative operational state is managed by the Console bundle (09_Operator_Console_v5.html plus required js/ module files)
+Status: Decision companion layer only — authoritative operational state is managed by the Console bundle (console.html plus required js/ module files)
 
 ==============================================================================
 0. WHAT THIS FILE IS
@@ -29,7 +29,7 @@ This file is not:
 - a place to reinterpret contracts
 
 AUTHORITY RULE
-The Console (09: 09_Operator_Console_v5.html plus required js/ module files) is the authoritative operational state manager. It enforces stage progression and artifact tracking based on the rules defined in 07.
+The Console (console.html plus required js/ module files) is the authoritative operational state manager. It enforces stage progression and artifact tracking based on the rules defined in 07.
 This file (08) helps the operator make judgment decisions the Console cannot automate.
 If the Console blocks a transition, check 07 for the rule and this file for guidance on resolving the situation.
 

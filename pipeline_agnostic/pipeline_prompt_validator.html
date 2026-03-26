@@ -130,7 +130,7 @@
 
   <div style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-wrap:wrap">
     <div class="protocol-badge" id="protocolBadge" style="font:700 10px/1.4 var(--mono);color:var(--accent);padding:4px 10px;border:1px solid rgba(110,231,183,0.25);border-radius:6px;background:rgba(110,231,183,0.06);letter-spacing:0.5px">
-      PROTOCOL: embedded v1.0.0 (v5 calibration)
+      PROTOCOL: embedded v1.3.1 (v5 agnostic + clustered merge + C2 alignment + C5 editorial)
     </div>
     <label style="font:700 10px/1.4 var(--mono);color:var(--blue);padding:4px 10px;border:1px solid rgba(147,197,253,0.3);border-radius:6px;background:rgba(147,197,253,0.06);cursor:pointer;letter-spacing:0.5px">
       ↑ Load External Protocol
@@ -157,33 +157,33 @@ const STAGE_NUMBERS = { stage1: "01", stage2: "02", stage3: "03", stage4: "04", 
 // It can be overridden at runtime via "Load External Protocol".
 
 let PROTOCOL = {
-  version: "1.0.0",
-  calibrated_against: "v5 prompts",
-  calibration_date: "2026-03-24",
+  version: "1.3.1",
+  calibrated_against: "v5 agnostic templates + clustered merge design + C2 analyzer alignment + C5 editorial pass",
+  calibration_date: "2026-03-26",
 
   stages: {
     stage1: {
       number: "01", label: "Stage 01 — Requirements Engineer", artifact_produced: "Master Briefing",
       frozen_tokens: ["Master Briefing", "Definition of Done", "CRITICAL_RULE", "DO_NOT_BREAK"],
-      required_sections: ["Role", "Interview", "Master Briefing", "Complexity Assessment", "Safety-Critical", "Initial Greeting"],
+      required_sections: ["Role", "Interview", "Master Briefing", "Complexity Assessment", "Safety Assessment", "Initial Greeting"],
       contract_id_prefixes: ["FACT-", "DEC-", "DONE-", "SCOPE-"],
       has_escalation_check: false,
-      greeting_pattern: "Begin the conversation exactly",
+      greeting_pattern: "When the conversation begins",
       stage_specific_checks: []
     },
     stage2: {
       number: "02", label: "Stage 02 — Technical Architect", artifact_produced: "Architecture Spec",
       frozen_tokens: ["Master Briefing", "Architecture Spec", "Progression Status: CLOSED", "Progression Status: PAUSE_FOR_DECISIONS"],
-      required_sections: ["Role", "Module Inventory", "Canonical Shared Types", "Boundary", "Invariant", "Error", "Dependency", "Architecture Readiness", "Decision Closure", "Progression Status", "Initial Greeting"],
+      required_sections: ["Role", "Component Inventory", "Canonical Shared Definitions", "Boundary", "Invariant", "Error", "Dependency", "Architecture Readiness", "Decision Closure", "Progression Status", "Initial Greeting"],
       contract_id_prefixes: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-"],
       has_escalation_check: false,
-      greeting_pattern: "Begin the conversation exactly",
+      greeting_pattern: "When the conversation begins",
       stage_specific_checks: []
     },
     stage3: {
       number: "03", label: "Stage 03 — Project Orchestrator", artifact_produced: "Master Orchestration File + Work Packages",
-      frozen_tokens: ["Master Briefing", "Architecture Spec", "Progression Status: CLOSED", "Progression Status: PAUSE_FOR_DECISIONS", "Master Orchestration File", "Work Package File", "Execution Checklist", "_Work_Package.txt", "_Master_Orchestration.txt", "_Execution_Checklist.txt", "Package ID:", "Objective:", "Depends On", "Filename:", "Formal Package Contract", "Operator Header", "Boundary Test Minimum", "Definition of Done", "Not-Done-If", "delivery declaration", "Gate Result", "Blocking Contract-Critical Decisions", "Minimal Decision Questionnaire", "Resume Instruction"],
-      required_sections: ["Role", "Contract Closure Gate", "Phase 0", "Phase 1", "Phase 2", "Operator Header", "Formal Package Contract", "delivery declaration", "Repair Prompt", "Artifact Ledger", "Initial Greeting"],
+      frozen_tokens: ["Master Briefing", "Architecture Spec", "Progression Status: CLOSED", "Progression Status: PAUSE_FOR_DECISIONS", "Master Orchestration File", "Work Package File", "Execution Checklist", "_Work_Package.txt", "_Master_Orchestration.txt", "_Execution_Checklist.txt", "Package ID:", "Objective:", "Depends On", "Filename:", "Formal Package Contract", "Operator Header", "Boundary Test Minimum", "Definition of Done", "Not-Done-If", "Delivery Report", "Gate Result", "Blocking Contract-Critical Decisions", "Minimal Decision Questionnaire", "Resume Instruction", "Suggested Merge Clusters"],
+      required_sections: ["Role", "Contract Closure Gate", "Phase 0", "Phase 1", "Phase 2", "Operator Header", "Formal Package Contract", "Delivery Report", "Repair Prompt", "Artifact Ledger", "Suggested Merge Clusters", "Initial Greeting"],
       contract_id_prefixes: ["MOD-", "TYPE-", "IF-", "ARTIFACT-", "INV-", "ERR-", "FACT-", "DEC-", "DONE-"],
       has_escalation_check: true,
       greeting_pattern: "When the conversation begins",
@@ -192,28 +192,28 @@ let PROTOCOL = {
     stage4: {
       number: "04", label: "Stage 04 — Module Implementer", artifact_produced: "Delivery Report",
       frozen_tokens: ["Master Briefing", "Architecture Spec", "Delivery Report", "Definition of Done", "Not-Done-If", "Boundary Verification Status"],
-      required_sections: ["Role", "Scope", "Required Inputs", "Output Contract", "Delivery Report", "Validation", "Blocked-State", "Quality Gate", "Initial Greeting"],
+      required_sections: ["Role", "Scope", "Input Contract", "Output Contract", "Delivery Report", "Validation", "Escalation Rule", "Quality Gate", "Initial Greeting"],
       contract_id_prefixes: [],
       has_escalation_check: true,
-      greeting_pattern: "Begin the conversation exactly",
+      greeting_pattern: "When the conversation begins",
       stage_specific_checks: []
     },
     stage5: {
       number: "05", label: "Stage 05 — Code Reviewer", artifact_produced: "Review Report",
-      frozen_tokens: ["Master Briefing", "Architecture Spec", "FINAL_DISPOSITION:", "Merge-Blocking: YES", "Merge-Blocking: NO", "Review Report", "CRITICAL", "MAJOR", "MINOR", "NOTE"],
-      required_sections: ["Role", "Contract Compliance", "Review Checklist", "Evidence Classification", "Review Report", "Finding", "Severity", "Verdict", "Final Disposition", "Initial Greeting"],
+      frozen_tokens: ["Master Briefing", "Architecture Spec", "FINAL_DISPOSITION:", "REVIEW_BINDING_TOKEN", "Merge-Blocking: YES", "Merge-Blocking: NO", "Review Report", "CRITICAL", "MAJOR", "MINOR", "NOTE"],
+      required_sections: ["Role", "Contract Compliance", "Review Process", "Severity Definitions", "Review Report", "Finding", "Severity", "Verdict", "Final Disposition", "Initial Greeting"],
       contract_id_prefixes: [],
       has_escalation_check: true,
-      greeting_pattern: "Begin the conversation exactly",
+      greeting_pattern: "When the conversation begins",
       stage_specific_checks: ["final_disposition_position"]
     },
     stage6: {
       number: "06", label: "Stage 06 — Merge Coordinator", artifact_produced: "Integration Report",
-      frozen_tokens: ["Architecture Spec", "Review Report", "CLEAN MERGE", "MERGED WITH FIXES", "Delivery Report", "Integration Report", "Integration Verdict"],
-      required_sections: ["Role", "Integration Verdict", "Conflict", "Boundary Validation", "Integration Report", "Integration Manifest", "Compatibility Scan", "Blockers Requiring Upstream", "Initial Greeting"],
+      frozen_tokens: ["Architecture Spec", "Review Report", "REVIEW_BINDING_TOKEN", "CLEAN MERGE", "MERGED WITH FIXES", "BLOCKED \u2014 REQUIRES REWORK", "Delivery Report", "Integration Report", "Integration Verdict"],
+      required_sections: ["Role", "Integration Verdict", "Conflict", "Boundary Validation", "Integration Report", "Integration Manifest", "Compatibility Scan", "Known Integration Limitations", "Initial Greeting"],
       contract_id_prefixes: [],
       has_escalation_check: true,
-      greeting_pattern: "Begin the conversation exactly",
+      greeting_pattern: "When the conversation begins",
       stage_specific_checks: []
     }
   },
@@ -224,16 +224,40 @@ let PROTOCOL = {
     residual_domain_markers: { pattern: "\\[DOMAIN:[^\\]]*\\]", severity_if_found: "fail" }
   },
 
-  escalation_patterns: [
-    { regex: "escalat", second: "architect|upstream", flags: "i" },
-    { regex: "blocked.state", flags: "i" },
-    { regex: "contract\\s*/\\s*spec\\s*issue", flags: "i" },
-    { regex: "blockers?\\s+requiring\\s+upstream", flags: "i" }
-  ],
+  escalation_patterns: {
+    description: "v5 prompts use varying vocabulary for escalation/blocked-state routing. The validator accepts any of these patterns.",
+    patterns: [
+      { name: "classic_escalation", regex: "escalat", second: "architect|upstream", flags: "i" },
+      { name: "blocked_state", regex: "blocked.state", flags: "i" },
+      { name: "contract_spec_issue", regex: "contract\\s*/\\s*spec\\s*issue", flags: "i" },
+      { name: "upstream_blockers", regex: "blockers?\\s+requiring\\s+upstream", flags: "i" }
+    ]
+  },
 
   greeting_patterns: {
     sentence_patterns: ["When the conversation begins", "Begin the conversation exactly"],
     required_tag: "DO_NOT_BREAK"
+  },
+
+  agnostic_notes: {
+    role_name_mapping: {
+      stage4: { protocol: "Module Implementer", agnostic: "Deliverable Author" },
+      stage5: { protocol: "Code Reviewer", agnostic: "Deliverable Reviewer" },
+      stage6: { protocol: "Integration Coordinator", agnostic: "Integration Coordinator" }
+    },
+    frozen_tokens_absent_in_agnostic: {
+      stage1: { tokens: ["CRITICAL_RULE"], reason: "Domain-specific enforcement marker" },
+      stage4: { tokens: ["Definition of Done", "Not-Done-If", "Boundary Verification Status"], reason: "Domain-specific output sections" },
+      stage5: { tokens: ["Merge-Blocking: NO"], reason: "Prompt uses combined 'YES / NO' form" },
+      stage6: { tokens: ["Review Report"], reason: "Token appears in input packets, not in prompt" }
+    },
+    contract_prefixes_absent_in_agnostic: {
+      stage3: { prefixes: ["DEC-"], reason: "Decision contracts are domain-specific; injected by compiled domain packs" }
+    },
+    stage_checks_relaxed_in_agnostic: {
+      stage5: { checks: ["final_disposition_position"], reason: "Initial Greeting follows FINAL_DISPOSITION section, pushing it outside the 500-char tail window" }
+    },
+    validator_guidance: "When validating agnostic templates, skip tokens listed in frozen_tokens_absent_in_agnostic, skip prefixes listed in contract_prefixes_absent_in_agnostic, and relax checks listed in stage_checks_relaxed_in_agnostic."
   },
 
   cross_prompt_checks: [
@@ -443,26 +467,58 @@ function applyAllRepairs(stageKey, text) {
 function validatePrompt(stageKey, text, filename) {
   const results = [];
 
-  // 1. Frozen tokens (from protocol)
-  const requiredTokens = getFrozenTokens(stageKey);
+  // ── Agnostic template detection ──
+  const domainMarkerPattern = /\[DOMAIN:[^\]]*\]/g;
+  const isAgnostic = domainMarkerPattern.test(text);
+
+  if (isAgnostic) {
+    results.push({
+      check: "Template Mode",
+      pass: true,
+      severity: "pass",
+      detail: "Agnostic template detected — frozen token exceptions applied per agnostic_notes",
+      repairable: false
+    });
+  }
+
+  // 1. Frozen tokens (from protocol, with agnostic exceptions)
+  const allTokens = getFrozenTokens(stageKey);
+  const agnosticSkip = isAgnostic
+    ? (PROTOCOL.agnostic_notes?.frozen_tokens_absent_in_agnostic?.[stageKey]?.tokens || [])
+    : [];
+  const requiredTokens = allTokens.filter(t => !agnosticSkip.includes(t));
+  const skippedTokens = allTokens.filter(t => agnosticSkip.includes(t));
   const missingTokens = requiredTokens.filter(token => !text.includes(token));
+
+  let tokenDetail;
+  if (missingTokens.length) {
+    tokenDetail = `Missing: ${missingTokens.join(", ")}`;
+  } else {
+    tokenDetail = `All ${requiredTokens.length} required tokens present`;
+  }
+  if (skippedTokens.length > 0) {
+    tokenDetail += ` (${skippedTokens.length} skipped in agnostic mode: ${skippedTokens.join(", ")})`;
+  }
   results.push({
     check: "Frozen Tokens",
     pass: missingTokens.length === 0,
     severity: missingTokens.length > 0 ? "fail" : "pass",
-    detail: missingTokens.length ? `Missing: ${missingTokens.join(", ")}` : `All ${requiredTokens.length} tokens present`,
+    detail: tokenDetail,
     repairable: missingTokens.length > 0
   });
 
   // 2. Residual domain markers (from protocol.universal_checks)
+  // In agnostic mode, domain markers are expected — severity downgrades to info
   const domainPattern = new RegExp(PROTOCOL.universal_checks.residual_domain_markers.pattern, "g");
   const domainMarkers = (text.match(domainPattern) || []);
   results.push({
     check: "Residual [DOMAIN:] Markers",
-    pass: domainMarkers.length === 0,
-    severity: domainMarkers.length > 0 ? PROTOCOL.universal_checks.residual_domain_markers.severity_if_found : "pass",
-    detail: domainMarkers.length ? `${domainMarkers.length} unfilled markers found` : "No residual markers",
-    repairable: domainMarkers.length > 0
+    pass: isAgnostic ? true : domainMarkers.length === 0,
+    severity: isAgnostic ? "pass" : (domainMarkers.length > 0 ? PROTOCOL.universal_checks.residual_domain_markers.severity_if_found : "pass"),
+    detail: isAgnostic
+      ? `${domainMarkers.length} [DOMAIN:] marker(s) present — expected in agnostic template`
+      : (domainMarkers.length ? `${domainMarkers.length} unfilled markers found` : "No residual markers"),
+    repairable: isAgnostic ? false : domainMarkers.length > 0
   });
 
   // 3. Required sections (from protocol)
@@ -476,9 +532,15 @@ function validatePrompt(stageKey, text, filename) {
     repairable: missingSections.length > 0
   });
 
-  // 4. Contract ID prefixes (from protocol)
-  const prefixes = getContractPrefixes(stageKey);
-  if (prefixes.length === 0) {
+  // 4. Contract ID prefixes (from protocol, with agnostic exceptions)
+  const allPrefixes = getContractPrefixes(stageKey);
+  const agnosticPrefixSkip = isAgnostic
+    ? (PROTOCOL.agnostic_notes?.contract_prefixes_absent_in_agnostic?.[stageKey]?.prefixes || [])
+    : [];
+  const requiredPrefixes = allPrefixes.filter(p => !agnosticPrefixSkip.includes(p));
+  const skippedPrefixes = allPrefixes.filter(p => agnosticPrefixSkip.includes(p));
+
+  if (allPrefixes.length === 0) {
     results.push({
       check: "Contract ID Prefixes",
       pass: true,
@@ -487,12 +549,21 @@ function validatePrompt(stageKey, text, filename) {
       repairable: false
     });
   } else {
-    const missingPrefixes = prefixes.filter(prefix => !text.includes(prefix));
+    const missingPrefixes = requiredPrefixes.filter(prefix => !text.includes(prefix));
+    let prefixDetail;
+    if (missingPrefixes.length) {
+      prefixDetail = `Missing: ${missingPrefixes.join(", ")}`;
+    } else {
+      prefixDetail = `All ${requiredPrefixes.length} required prefixes present`;
+    }
+    if (skippedPrefixes.length > 0) {
+      prefixDetail += ` (${skippedPrefixes.length} skipped in agnostic mode: ${skippedPrefixes.join(", ")})`;
+    }
     results.push({
       check: "Contract ID Prefixes",
       pass: missingPrefixes.length === 0,
       severity: missingPrefixes.length > 0 ? "warn" : "pass",
-      detail: missingPrefixes.length ? `Missing: ${missingPrefixes.join(", ")}` : `All ${prefixes.length} prefixes present`,
+      detail: prefixDetail,
       repairable: false
     });
   }
@@ -551,17 +622,31 @@ function validatePrompt(stageKey, text, filename) {
     repairable: false
   });
 
-  // 9. Stage-specific checks (from protocol)
+  // 9. Stage-specific checks (from protocol, with agnostic relaxation)
   const stageChecks = PROTOCOL.stages[stageKey]?.stage_specific_checks || [];
+  const agnosticRelaxed = isAgnostic
+    ? (PROTOCOL.agnostic_notes?.stage_checks_relaxed_in_agnostic?.[stageKey]?.checks || [])
+    : [];
+
   if (stageChecks.includes("final_disposition_position")) {
-    const hasFinalDispoLast = /FINAL_DISPOSITION[^]*?$/i.test(text.slice(-500));
-    results.push({
-      check: "FINAL_DISPOSITION Position",
-      pass: hasFinalDispoLast,
-      severity: hasFinalDispoLast ? "pass" : "warn",
-      detail: hasFinalDispoLast ? "FINAL_DISPOSITION appears near end of prompt" : "FINAL_DISPOSITION may not be positioned as the last section",
-      repairable: false
-    });
+    if (agnosticRelaxed.includes("final_disposition_position")) {
+      results.push({
+        check: "FINAL_DISPOSITION Position",
+        pass: true,
+        severity: "pass",
+        detail: "Skipped in agnostic mode (Initial Greeting follows FINAL_DISPOSITION section)",
+        repairable: false
+      });
+    } else {
+      const hasFinalDispoLast = /FINAL_DISPOSITION[^]*?$/i.test(text.slice(-500));
+      results.push({
+        check: "FINAL_DISPOSITION Position",
+        pass: hasFinalDispoLast,
+        severity: hasFinalDispoLast ? "pass" : "warn",
+        detail: hasFinalDispoLast ? "FINAL_DISPOSITION appears near end of prompt" : "FINAL_DISPOSITION may not be positioned as the last section",
+        repairable: false
+      });
+    }
   }
   if (stageChecks.includes("mermaid_reference")) {
     const hasMermaid = /mermaid/i.test(text);

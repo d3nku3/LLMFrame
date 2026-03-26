@@ -150,6 +150,54 @@ function resolveWorkflowSnapshot() {
 
   if (state.stage6.mergeResultText.trim()) return createWorkflowSnapshot(WORKFLOW_STATES.STAGE6_COMPLETED, { detail: "The merge result is saved. The workflow now has an explicit merge-completed state for resume clarity." });
 
+  // ── Clustered merge workflow ──
+  const cp = state.stage6.clusterPlan;
+  if (cp.mode === "clustered" && cp.mergeOrder.length > 0) {
+    const currentId = cp.currentCluster;
+    const remaining = cp.mergeOrder.filter(id => !cp.completedClusters.includes(id));
+    const completedCount = cp.completedClusters.length;
+    const totalCount = cp.mergeOrder.length;
+    const progressLabel = `Cluster merge progress: ${completedCount}/${totalCount} complete`;
+
+    if (!currentId && remaining.length > 0) {
+      // Between clusters — advance to next
+      return createWorkflowSnapshot(WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_IMPORTED, {
+        detail: `${progressLabel}. Ready to advance to next cluster: ${remaining[0]}.`,
+        nextSuggestedState: WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_SENT
+      });
+    }
+    if (currentId && !cp.completedClusters.includes(currentId)) {
+      const cluster = cp.clusters[currentId];
+      const clusterInputs = cluster ? (cluster.inputs || []).join(", ") : "unknown";
+      const round = cluster ? cluster.round : "?";
+
+      if (state.stage6.requestPrepared && state.stage6.requestCopied) {
+        return createWorkflowSnapshot(WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_SENT, {
+          detail: `Waiting for cluster ${currentId} merge output (Round ${round}, inputs: ${clusterInputs}). ${progressLabel}.`,
+          expectedReturn: "Cluster merge output",
+          nextSuggestedState: WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_IMPORTED
+        });
+      }
+      if (state.stage6.requestPrepared) {
+        return createWorkflowSnapshot(WORKFLOW_STATES.STAGE6_REQUEST_READY, {
+          detail: `Cluster ${currentId} merge request ready to copy (Round ${round}, inputs: ${clusterInputs}). ${progressLabel}.`,
+          expectedReturn: "Cluster merge output",
+          nextSuggestedState: WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_SENT
+        });
+      }
+      // Request not yet built for current cluster
+      return createWorkflowSnapshot(WORKFLOW_STATES.STAGE6_CLUSTER_PLAN, {
+        detail: `Building merge request for cluster ${currentId} (Round ${round}, inputs: ${clusterInputs}). ${progressLabel}.`
+      });
+    }
+    if (remaining.length === 0) {
+      // All clusters done but final merge result not yet saved — should not normally happen
+      return createWorkflowSnapshot(WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_IMPORTED, {
+        detail: "All cluster merges complete. The final cluster output should be promoted to the merge result."
+      });
+    }
+  }
+
   if (state.stage6.requestPrepared) {
     if (!state.stage6.requestCopied) return createWorkflowSnapshot(WORKFLOW_STATES.STAGE6_REQUEST_READY, { detail: "The Stage 06 request is built and waiting to be copied into the Merge Coordinator chat.", expectedReturn: "Integration Report", nextSuggestedState: WORKFLOW_STATES.STAGE6_WAITING_RETURN });
     return createWorkflowSnapshot(WORKFLOW_STATES.STAGE6_WAITING_RETURN, { detail: "The external Stage 06 run is active. Save the returned Integration Report here when it comes back.", expectedReturn: "Integration Report", nextSuggestedState: WORKFLOW_STATES.STAGE6_COMPLETED });
@@ -213,6 +261,13 @@ function inferWorkflowEvent(previousWorkflow, nextWorkflow) {
     [`${WORKFLOW_STATES.STAGE5_REVIEW_WAITING_RETURN}->${WORKFLOW_STATES.STAGE4_PACKAGE_REWORK_READY}`]: "SAVE_STAGE5_RESULT",
     [`${WORKFLOW_STATES.STAGE5_PACKAGE_ACCEPTED}->${WORKFLOW_STATES.STAGE6_REQUEST_READY}`]: "PREPARE_STAGE6_REQUEST",
     [`${WORKFLOW_STATES.STAGE6_CANDIDATES_AVAILABLE}->${WORKFLOW_STATES.STAGE6_REQUEST_READY}`]: "PREPARE_STAGE6_REQUEST",
+    [`${WORKFLOW_STATES.STAGE6_CANDIDATES_AVAILABLE}->${WORKFLOW_STATES.STAGE6_CLUSTER_PLAN}`]: "PREPARE_CLUSTER_PLAN",
+    [`${WORKFLOW_STATES.STAGE6_CLUSTER_PLAN}->${WORKFLOW_STATES.STAGE6_REQUEST_READY}`]: "START_CLUSTER_MERGE",
+    [`${WORKFLOW_STATES.STAGE6_REQUEST_READY}->${WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_SENT}`]: "COPY_CLUSTER_MERGE_REQUEST",
+    [`${WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_SENT}->${WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_IMPORTED}`]: "SAVE_CLUSTER_MERGE_RESULT",
+    [`${WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_IMPORTED}->${WORKFLOW_STATES.STAGE6_REQUEST_READY}`]: "ADVANCE_CLUSTER",
+    [`${WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_IMPORTED}->${WORKFLOW_STATES.STAGE6_CLUSTER_PLAN}`]: "ADVANCE_CLUSTER",
+    [`${WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_IMPORTED}->${WORKFLOW_STATES.STAGE6_COMPLETED}`]: "PROMOTE_FINAL_CLUSTER",
     [`${WORKFLOW_STATES.STAGE6_REQUEST_READY}->${WORKFLOW_STATES.STAGE6_WAITING_RETURN}`]: "COPY_STAGE6_REQUEST",
     [`${WORKFLOW_STATES.STAGE6_WAITING_RETURN}->${WORKFLOW_STATES.STAGE6_COMPLETED}`]: "SAVE_STAGE6_RESULT"
   };
@@ -899,4 +954,145 @@ function ensurePackageState() {
   if (state.stage3.outcome !== "closed" && (Object.keys(state.stage4.packages).length || state.stage6.mergeResultText.trim())) {
     clearLateStages();
   }
+}
+
+// ── Cluster Merge Helpers ──
+
+function isClusteredMergeActive() {
+  return state.stage6.clusterPlan.mode === "clustered" && state.stage6.clusterPlan.mergeOrder.length > 0;
+}
+
+function clusterMergeThresholdReached() {
+  const THRESHOLD = 5;
+  return mergeReadyPackages().length >= THRESHOLD;
+}
+
+function initializeClusterPlan(clusters) {
+  // clusters: { A: { inputs: ["PKG_001", "PKG_002", "PKG_003"], round: 1 }, B: { ... }, AB: { inputs: ["CLUSTER_A", "CLUSTER_B"], round: 2 } }
+  // Derive mergeOrder: round 1 clusters first, then round 2, etc.
+  const sorted = Object.entries(clusters)
+    .sort(([, a], [, b]) => (a.round || 1) - (b.round || 1))
+    .map(([id]) => id);
+
+  state.stage6.clusterPlan = {
+    mode: "clustered",
+    clusters: JSON.parse(JSON.stringify(clusters)),
+    mergeOrder: sorted,
+    currentCluster: sorted[0] || "",
+    completedClusters: [],
+    failureCounts: {}
+  };
+}
+
+function advanceToNextCluster() {
+  const cp = state.stage6.clusterPlan;
+  const currentIdx = cp.mergeOrder.indexOf(cp.currentCluster);
+  if (cp.currentCluster && !cp.completedClusters.includes(cp.currentCluster)) {
+    cp.completedClusters.push(cp.currentCluster);
+  }
+  const nextIdx = currentIdx + 1;
+  if (nextIdx < cp.mergeOrder.length) {
+    cp.currentCluster = cp.mergeOrder[nextIdx];
+    // Reset request state for next cluster
+    state.stage6.requestPrepared = false;
+    state.stage6.requestCopied = false;
+    state.stage6.requestText = "";
+    return cp.currentCluster;
+  }
+  cp.currentCluster = "";
+  return null; // All clusters done
+}
+
+function recordClusterFailure(clusterId) {
+  const cp = state.stage6.clusterPlan;
+  cp.failureCounts[clusterId] = (cp.failureCounts[clusterId] || 0) + 1;
+  return cp.failureCounts[clusterId];
+}
+
+function isReclusterUnlocked(clusterId) {
+  const RECLUSTER_THRESHOLD = 2;
+  const cp = state.stage6.clusterPlan;
+  return (cp.failureCounts[clusterId] || 0) >= RECLUSTER_THRESHOLD;
+}
+
+function getClusterInputPackages(clusterId) {
+  const cp = state.stage6.clusterPlan;
+  const cluster = cp.clusters[clusterId];
+  if (!cluster) return [];
+  return (cluster.inputs || []).map(inputId => {
+    // Input is either a package key or a CLUSTER_x reference
+    if (inputId.startsWith("CLUSTER_")) return null; // Cluster output — handled separately
+    return getPackagesInOrder().find(pkg => pkg.packageId === inputId || pkg.key === inputId) || null;
+  }).filter(Boolean);
+}
+
+function getClusterInputText(clusterId) {
+  const cp = state.stage6.clusterPlan;
+  const cluster = cp.clusters[clusterId];
+  if (!cluster) return "";
+  const parts = [];
+  for (const inputId of (cluster.inputs || [])) {
+    if (inputId.startsWith("CLUSTER_")) {
+      // Find the completed cluster merge artifact
+      const sourceClusterId = inputId.replace("CLUSTER_", "");
+      const artifactId = findClusterMergeArtifactId(sourceClusterId);
+      if (artifactId) {
+        const artifact = getManifestArtifact(artifactId);
+        if (artifact?.content) {
+          parts.push(`CLUSTER ${sourceClusterId} MERGE OUTPUT\n${artifact.content}`);
+        }
+      }
+    } else {
+      // Package input
+      const pkg = getPackagesInOrder().find(p => p.packageId === inputId || p.key === inputId);
+      if (pkg) {
+        parts.push([
+          `PACKAGE: ${pkg.packageId || pkg.filename}`,
+          `PACKAGE FILE: ${pkg.filename}`,
+          `IMPLEMENTATION FINGERPRINT: ${pkg.implementationOutputFingerprint}`,
+          "",
+          "WORK PACKAGE CONTRACT",
+          safeText(pkg.packageText).trim(),
+          "",
+          "IMPLEMENTATION OUTPUT",
+          safeText(pkg.implementationOutputText).trim(),
+          "",
+          "REVIEW REPORT",
+          safeText(pkg.reviewOutputText).trim()
+        ].join("\n"));
+      }
+    }
+  }
+  return parts.join(MERGE_SEPARATOR);
+}
+
+function findClusterMergeArtifactId(clusterId) {
+  // Search manifest for the cluster merge output artifact
+  if (!state.manifest?.artifacts) return null;
+  for (const [id, artifact] of Object.entries(state.manifest.artifacts)) {
+    if (artifact.artifactType === "cluster_merge_output" && artifact.attributes?.clusterId === clusterId && artifact.status === "current") {
+      return id;
+    }
+  }
+  return null;
+}
+
+function promoteClusterToFinalMerge(clusterId) {
+  // Promote the last cluster merge output to the standard merge result
+  const artifactId = findClusterMergeArtifactId(clusterId);
+  if (!artifactId) return false;
+  const artifact = getManifestArtifact(artifactId);
+  if (!artifact?.content) return false;
+  state.stage6.mergeResultText = artifact.content;
+  state.stage6.mergeSavedAt = nowStamp();
+  state.stage6.mergeVerdict = parseMergeVerdict(artifact.content);
+  state.stage6.mergeArtifactId = artifactId;
+  // Mark all intermediate cluster artifacts as superseded
+  for (const [id, a] of Object.entries(state.manifest.artifacts)) {
+    if (a.artifactType === "cluster_merge_output" && id !== artifactId) {
+      a.status = "superseded";
+      a.statusReason = `Superseded by final cluster merge: ${artifactId}`;
+    }
+  }
+  return true;
 }

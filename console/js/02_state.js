@@ -132,7 +132,15 @@ function createDefaultState() {
       mergeSavedAt: "",
       mergeVerdict: "",
       mergeArtifactId: "",
-      includedPackageKeys: []
+      includedPackageKeys: [],
+      clusterPlan: {
+        mode: "standard",
+        clusters: {},
+        mergeOrder: [],
+        currentCluster: "",
+        completedClusters: [],
+        failureCounts: {}
+      }
     }
   };
 }
@@ -264,6 +272,19 @@ function normalizeImportedState(rawInput) {
   normalized.stage6.includedPackageKeys = (Array.isArray(safeInput?.stage6?.includedPackageKeys) ? safeInput.stage6.includedPackageKeys : [])
     .map(item => safeText(item).trim())
     .filter(key => Boolean(normalized.stage4.packages[key]));
+
+  // Cluster plan normalization — backward-compatible with pre-cluster states
+  const rawCluster = safeInput?.stage6?.clusterPlan;
+  if (rawCluster && typeof rawCluster === "object" && rawCluster.mode === "clustered") {
+    normalized.stage6.clusterPlan = {
+      mode: "clustered",
+      clusters: (typeof rawCluster.clusters === "object" && rawCluster.clusters !== null) ? rawCluster.clusters : {},
+      mergeOrder: Array.isArray(rawCluster.mergeOrder) ? rawCluster.mergeOrder : [],
+      currentCluster: safeText(rawCluster.currentCluster).trim(),
+      completedClusters: Array.isArray(rawCluster.completedClusters) ? rawCluster.completedClusters : [],
+      failureCounts: (typeof rawCluster.failureCounts === "object" && rawCluster.failureCounts !== null) ? rawCluster.failureCounts : {}
+    };
+  }
 
   stripPersistedPromptState(normalized);
   if (isPlainObject(safeInput.manifest)) {

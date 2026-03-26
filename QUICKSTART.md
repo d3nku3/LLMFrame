@@ -11,7 +11,7 @@ That's it. No install, no server, no terminal, no accounts.
 
 ## Step 1: Open the Console
 
-Double-click `09_Operator_Console_v5.html`. It opens in your browser.
+Double-click `console.html`. It opens in your browser.
 
 ## Step 2: Select a Workspace
 
@@ -33,6 +33,8 @@ Click **Import Prompts** and select all six prompt files:
 | `06_Merge_Coordinator_v5.txt` | Merges accepted packages, verifies consistency |
 
 The Console will confirm the import and show the prompts in the sidebar.
+
+> **Using the pipeline for non-coding work?** Import the six domain-agnostic templates instead (the `_Agnostic.txt` files). These contain `[DOMAIN:]` markers that work for any field — technical reports, legal documents, book manuscripts. Use the **Pipeline Prompt Compiler** to fill in the markers for your domain, then validate the result with the **Pipeline Prompt Validator** before importing.
 
 ## Step 4: Run Stage 01 — Requirements
 
@@ -85,7 +87,11 @@ The Console enforces the correct order, binds reviews to specific implementation
 
 - Read `07_End_User_Operating_Guide_v5.txt` for the full pipeline rules, evidence classes, and go/no-go criteria.
 - Read `08_Operator_Run_Layer_v5.txt` for decision support during execution (when to rework, when to escalate, when to proceed).
+- Read [ARCHITECTURE.md](ARCHITECTURE.md) for the three-layer system design and which rules are enforced vs. guidance.
 - Explore the **Lineage Graph** in the Console to see your project's dependency map evolve in real time.
+- Run the **Pipeline Prompt Validator** against your prompts to catch structural issues before they surface mid-project. It includes auto-repair for common problems.
+- **Domain packs:** Once you have compiled prompts for a domain, place them in `workspace/prompts/<pack-name>/` and the Console will auto-detect them in the workspace indicator dropdown.
+- **Large projects (10+ packages):** The pipeline supports clustered merge — splitting Stage 06 into iterative merge rounds instead of one monolithic pass. See `DESIGN_Clustered_Merge.md` for the design spec.
 
 ## Tips for Your First Project
 

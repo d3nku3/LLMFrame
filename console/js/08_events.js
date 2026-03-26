@@ -1,6 +1,61 @@
 // 08_events.js — Operator actions, imports/exports, dynamic bindings, and event handlers
 // Wires UI events to workflow mutations and persistence calls.
 
+// ── Domain Pack Management ──
+
+async function scanDomainPacks() {
+  if (!workspaceSubHandles.prompts) return [];
+  const packs = [];
+  try {
+    for await (const [name, handle] of workspaceSubHandles.prompts.entries()) {
+      if (handle.kind !== "directory") continue;
+      let hasPrompt = false;
+      try {
+        for await (const [childName] of handle.entries()) {
+          if (/^0[1-6][_\s\-]/.test(childName) && childName.endsWith(".txt")) { hasPrompt = true; break; }
+        }
+      } catch(e) {}
+      if (hasPrompt) packs.push(name);
+    }
+  } catch(e) { console.warn("Domain pack scan failed", e); }
+  return packs.sort();
+}
+
+async function loadDomainPack(packName) {
+  if (!workspaceSubHandles.prompts || !packName) return { loaded: 0, errors: [] };
+  let packDir;
+  try {
+    packDir = await workspaceSubHandles.prompts.getDirectoryHandle(packName);
+  } catch(e) {
+    return { loaded: 0, errors: [`Pack directory "${packName}" not found.`] };
+  }
+  const loaded = [];
+  const errors = [];
+  try {
+    for await (const [name, handle] of packDir.entries()) {
+      if (handle.kind !== "file") continue;
+      if (!/^0[1-6][_\s\-]/.test(name) || !name.endsWith(".txt")) continue;
+      try {
+        const file = await handle.getFile();
+        const text = await file.text();
+        if (text.trim()) loaded.push({ name, text: text.trim(), sourceMode: "domain-pack" });
+      } catch(e) { errors.push(`Failed to read ${name}: ${e.message}`); }
+    }
+  } catch(e) { errors.push(`Failed to iterate pack: ${e.message}`); }
+  // Clear existing prompt reference files and replace with pack contents
+  state.referenceFiles = (state.referenceFiles || []).filter(f => !isPromptReferenceFile(f));
+  loaded.forEach(item => upsertReferenceFile(item));
+  state.activeDomainPack = packName;
+  await saveState("domain pack loaded: " + packName).catch(e => console.warn("Persistence failed", e));
+  return { loaded: loaded.length, errors };
+}
+
+async function unloadDomainPack() {
+  state.referenceFiles = (state.referenceFiles || []).filter(f => !isPromptReferenceFile(f));
+  state.activeDomainPack = "";
+  await saveState("domain pack unloaded").catch(e => console.warn("Persistence failed", e));
+}
+
 
 const debouncedKeystrokeSave = debounce((origin) => {
   saveState(origin, { audit: false }).catch(err => console.error("Persistence failed", err));
@@ -554,6 +609,8 @@ function promptReady(stageKey) {
 }
 
 function resetMergeState() {
+  // Note: createDefaultState().stage6 includes a fresh clusterPlan object,
+  // so this reset also clears any active cluster merge state.
   const priorMergeArtifactId = state.stage6.mergeArtifactId;
   const hadMergeState = Boolean(
     safeText(state.stage6.requestText).trim() ||
@@ -584,6 +641,90 @@ function clearPacket(target, prefix) {
 }
 
 // ── Paste plausibility checks ──
+// Protocol alignment (C1):
+//   label             ← protocol.stages[S].artifact_produced
+//   wrongStageMarkers ← protocol.stages[T].frozen_tokens (characteristic tokens from OTHER stages)
+//   expectAnywhere    ← protocol.stages[S].frozen_tokens (subset)
+//   expectStart/End   ← Console-specific heuristics, not in protocol
+//   Truncation/length ← Console-specific UX guard, not in protocol
+// Run checkPlausibilityProtocolAlignment() in the browser console to detect drift.
+
+// ── Protocol alignment assertion (Option B from C1 analysis) ──
+// Embedded expected values from pipeline_protocol_v1.json v1.3.1.
+// If protocol changes, this assertion will fail and flag the drift.
+
+const PLAUSIBILITY_PROTOCOL_EXPECTATIONS = Object.freeze({
+  stage1: { artifact_produced: "Master Briefing", characteristic_tokens: ["Master Briefing", "Definition of Done"] },
+  stage2: { artifact_produced: "Architecture Spec", characteristic_tokens: ["Architecture Spec", "Progression Status: CLOSED"] },
+  stage3: { artifact_produced: "Master Orchestration File + Work Packages", characteristic_tokens: ["Master Orchestration File", "Work Package File", "Execution Checklist"] },
+  stage4: { artifact_produced: "Delivery Report", characteristic_tokens: ["Delivery Report", "Boundary Verification Status"] },
+  stage5: { artifact_produced: "Review Report", characteristic_tokens: ["FINAL_DISPOSITION:", "Review Report", "REVIEW_BINDING_TOKEN"] },
+  stage6: { artifact_produced: "Integration Report", characteristic_tokens: ["Integration Report", "CLEAN MERGE", "BLOCKED \u2014 REQUIRES REWORK", "Integration Verdict", "REVIEW_BINDING_TOKEN"] }
+});
+
+function checkPlausibilityProtocolAlignment() {
+  const results = [];
+  for (const [stageKey, expect] of Object.entries(PLAUSIBILITY_PROTOCOL_EXPECTATIONS)) {
+    const rules = PLAUSIBILITY_RULES[stageKey];
+    if (!rules) {
+      results.push({ stage: stageKey, check: "exists", status: "FAIL", detail: "No PLAUSIBILITY_RULES entry" });
+      continue;
+    }
+    // Check label matches artifact_produced
+    if (rules.label !== expect.artifact_produced) {
+      results.push({ stage: stageKey, check: "label", status: "FAIL",
+        detail: `label "${rules.label}" ≠ protocol artifact_produced "${expect.artifact_produced}"` });
+    } else {
+      results.push({ stage: stageKey, check: "label", status: "PASS", detail: rules.label });
+    }
+    // Check characteristic tokens appear somewhere in rules (expectAnywhere, wrongStageMarkers of other stages, or expectEnd)
+    // Custom stringify that preserves regex source text (JSON.stringify serializes RegExp as {})
+    const regexAwareStringify = (obj) => JSON.stringify(obj, (_, v) => v instanceof RegExp ? v.source : v);
+    const allRuleText = regexAwareStringify(rules);
+    for (const token of expect.characteristic_tokens) {
+      // Extract core words (strip punctuation) for fuzzy matching against stringified regexes
+      const coreWords = token.replace(/[^a-zA-Z0-9_]+/g, " ").trim().split(/\s+/).filter(w => w.length > 2);
+      const found = coreWords.every(w => new RegExp(w, "i").test(allRuleText));
+      // Also check if this token appears in OTHER stages' wrongStageMarkers
+      let foundInOther = false;
+      for (const [otherKey, otherRules] of Object.entries(PLAUSIBILITY_RULES)) {
+        if (otherKey === stageKey) continue;
+        const otherText = regexAwareStringify(otherRules.wrongStageMarkers || []);
+        if (coreWords.every(w => new RegExp(w, "i").test(otherText))) {
+          foundInOther = true;
+          break;
+        }
+      }
+      if (found || foundInOther) {
+        results.push({ stage: stageKey, check: `token:${token}`, status: "PASS", detail: found ? "in own rules" : "in other stage wrongStageMarkers" });
+      } else {
+        results.push({ stage: stageKey, check: `token:${token}`, status: "WARN", detail: "Not found in any plausibility rule" });
+      }
+    }
+  }
+  // Check protocol version matches
+  if (typeof PROTOCOL_VERSION !== "undefined") {
+    const expectVersion = "1.3.1";
+    results.push({
+      stage: "global", check: "PROTOCOL_VERSION",
+      status: PROTOCOL_VERSION === expectVersion ? "PASS" : "FAIL",
+      detail: `Console: ${PROTOCOL_VERSION}, assertion expects: ${expectVersion}`
+    });
+  }
+  // Summary
+  const fails = results.filter(r => r.status === "FAIL");
+  const warns = results.filter(r => r.status === "WARN");
+  const passes = results.filter(r => r.status === "PASS");
+  console.group(`Plausibility ↔ Protocol alignment: ${passes.length} pass, ${fails.length} fail, ${warns.length} warn`);
+  for (const r of results) {
+    const icon = r.status === "PASS" ? "✅" : r.status === "FAIL" ? "❌" : "⚠️";
+    console[r.status === "FAIL" ? "error" : r.status === "WARN" ? "warn" : "log"](
+      `${icon} [${r.stage}] ${r.check}: ${r.detail}`
+    );
+  }
+  console.groupEnd();
+  return { pass: passes.length, fail: fails.length, warn: warns.length, results };
+}
 
 const PLAUSIBILITY_RULES = {
   stage1: {
@@ -592,8 +733,8 @@ const PLAUSIBILITY_RULES = {
     expectEnd: [/complexity|safety|readiness|pipeline\s*required|no\s*safety\s*concern/i],
     expectAnywhere: [/master\s*briefing/i],
     wrongStageMarkers: [
-      { pattern: /FINAL_DISPOSITION/i, looks: "a review report (Stage 05)" },
-      { pattern: /Integration\s*Report/i, looks: "a merge result (Stage 06)" },
+      { pattern: /FINAL_DISPOSITION/i, looks: "a Review Report (Stage 05)" },
+      { pattern: /Integration\s*Report/i, looks: "an Integration Report (Stage 06)" },
       { pattern: /Work\s*Package\s*File/i, looks: "an orchestration artifact (Stage 03)" }
     ]
   },
@@ -601,49 +742,49 @@ const PLAUSIBILITY_RULES = {
     label: "Architecture Spec",
     expectStart: [/architecture\s*spec/i, /system\s*overview/i, /^#\s/],
     expectEnd: [/progression\s*status|definitive\s*verdict|safety\s*assessment|no\s*safety\s*concern/i],
-    expectAnywhere: [/architecture\s*spec/i, /module\s*inventory|interface\s*contract/i],
+    expectAnywhere: [/architecture\s*spec/i, /component\s*inventory|canonical\s*shared/i],
     wrongStageMarkers: [
-      { pattern: /FINAL_DISPOSITION/i, looks: "a review report (Stage 05)" },
-      { pattern: /Delivery\s*Report/i, looks: "an implementation output (Stage 04)" }
+      { pattern: /FINAL_DISPOSITION/i, looks: "a Review Report (Stage 05)" },
+      { pattern: /Delivery\s*Report/i, looks: "a Delivery Report (Stage 04)" }
     ]
   },
   stage3: {
-    label: "Stage 03 result",
+    label: "Master Orchestration File + Work Packages",
     expectStart: [/master\s*orchestration|work\s*package|gate\s*result|pause/i, /^#\s/, /^filename:/i],
     expectEnd: [],
     expectAnywhere: [/work\s*package|master\s*orchestration|pause_for_decisions|execution\s*checklist/i],
     wrongStageMarkers: [
-      { pattern: /FINAL_DISPOSITION/i, looks: "a review report (Stage 05)" },
-      { pattern: /Delivery\s*Report[\s\S]{0,200}Requirement\s*IDs\s*addressed/i, looks: "an implementation output (Stage 04)" }
+      { pattern: /FINAL_DISPOSITION/i, looks: "a Review Report (Stage 05)" },
+      { pattern: /Delivery\s*Report[\s\S]{0,200}Requirement\s*IDs\s*addressed/i, looks: "a Delivery Report (Stage 04)" }
     ]
   },
   stage4: {
-    label: "implementation output",
+    label: "Delivery Report",
     expectStart: [],
     expectEnd: [/delivery\s*report|requirement\s*ids\s*addressed|contract\s*ids\s*obeyed|files\s*created|known\s*limitations/i],
     expectAnywhere: [],
     wrongStageMarkers: [
-      { pattern: /FINAL_DISPOSITION/i, looks: "a review report (Stage 05)" },
-      { pattern: /Integration\s*Report/i, looks: "a merge result (Stage 06)" },
+      { pattern: /FINAL_DISPOSITION/i, looks: "a Review Report (Stage 05)" },
+      { pattern: /Integration\s*Report/i, looks: "an Integration Report (Stage 06)" },
       { pattern: /Progression\s*Status:\s*CLOSED/i, looks: "an Architecture Spec (Stage 02)" }
     ]
   },
   stage5: {
-    label: "review report",
+    label: "Review Report",
     expectStart: [],
     expectEnd: [/FINAL_DISPOSITION\s*:\s*(ACCEPT|REWORK)/i],
-    expectAnywhere: [/FINAL_DISPOSITION/i],
+    expectAnywhere: [/FINAL_DISPOSITION/i, /REVIEW_BINDING_TOKEN/],
     wrongStageMarkers: [
-      { pattern: /Integration\s*Report[\s\S]{0,300}Integration\s*Manifest/i, looks: "a merge result (Stage 06)" }
+      { pattern: /Integration\s*Report[\s\S]{0,300}Integration\s*Manifest/i, looks: "an Integration Report (Stage 06)" }
     ]
   },
   stage6: {
-    label: "merge result",
+    label: "Integration Report",
     expectStart: [/integration\s*report|merge/i],
     expectEnd: [],
-    expectAnywhere: [/integration\s*report|clean\s*merge|merged\s*with\s*fixes|blocked.*requires\s*rework/i],
+    expectAnywhere: [/integration\s*report|clean\s*merge|merged\s*with\s*fixes|blocked.*requires\s*rework/i, /REVIEW_BINDING_TOKEN/],
     wrongStageMarkers: [
-      { pattern: /FINAL_DISPOSITION\s*:\s*(ACCEPT|REWORK)/i, looks: "a review report (Stage 05)" }
+      { pattern: /FINAL_DISPOSITION\s*:\s*(ACCEPT|REWORK)/i, looks: "a Review Report (Stage 05)" }
     ]
   }
 };
@@ -693,6 +834,102 @@ function confirmPlausibility(stageKey, text) {
   if (!warnings.length) return true;
   const message = "Plausibility check:\n\n" + warnings.map((w, i) => `${i + 1}. ${w}`).join("\n") + "\n\nSave anyway?";
   return confirm(message);
+}
+
+function validateClusterPlan(clusters) {
+  // Expects: { A: { inputs: ["PKG_001", ...], round: 1 }, B: { inputs: [...], round: 1 }, AB: { inputs: ["CLUSTER_A", "CLUSTER_B"], round: 2 } }
+  const errors = [];
+  const warnings = [];
+
+  if (!clusters || typeof clusters !== "object" || Array.isArray(clusters)) {
+    errors.push("Plan must be a JSON object mapping cluster IDs to { inputs, round } objects.");
+    return { ok: false, errors, warnings };
+  }
+
+  const ready = mergeReadyPackages();
+  const readyKeys = new Set(ready.map(pkg => pkg.key));
+  const readyIds = new Set(ready.map(pkg => pkg.packageId).filter(Boolean));
+  const clusterIds = new Set(Object.keys(clusters));
+  const packageAssignments = new Map();
+  const clusterRefs = new Map(); // CLUSTER_X references → which cluster uses them
+  let maxRound = 0;
+
+  for (const [clusterId, cluster] of Object.entries(clusters)) {
+    if (!cluster || typeof cluster !== "object" || Array.isArray(cluster)) {
+      errors.push(`Cluster "${clusterId}" must be an object with { inputs, round }.`);
+      continue;
+    }
+    if (!Array.isArray(cluster.inputs) || !cluster.inputs.length) {
+      errors.push(`Cluster "${clusterId}" must have a non-empty inputs array.`);
+      continue;
+    }
+    const round = cluster.round || 1;
+    if (typeof round !== "number" || round < 1) {
+      errors.push(`Cluster "${clusterId}" has invalid round: ${round}.`);
+    }
+    if (round > maxRound) maxRound = round;
+
+    const packageInputs = cluster.inputs.filter(id => !String(id).startsWith("CLUSTER_"));
+    const clusterInputs = cluster.inputs.filter(id => String(id).startsWith("CLUSTER_"));
+
+    if (packageInputs.length > 3) {
+      warnings.push(`Cluster "${clusterId}" has ${packageInputs.length} direct package inputs (recommended max: 3).`);
+    }
+
+    // Round 1 should reference packages; Round 2+ should reference CLUSTER_ outputs
+    if (round === 1 && clusterInputs.length) {
+      errors.push(`Round 1 cluster "${clusterId}" references other clusters — only Round 2+ clusters should use CLUSTER_ inputs.`);
+    }
+    if (round > 1 && packageInputs.length) {
+      warnings.push(`Round ${round} cluster "${clusterId}" references raw packages — typically only CLUSTER_ inputs are expected in later rounds.`);
+    }
+
+    for (const inputId of packageInputs) {
+      const matchesKey = readyKeys.has(inputId);
+      const matchesId = readyIds.has(inputId);
+      if (!matchesKey && !matchesId) {
+        errors.push(`Package "${inputId}" in cluster "${clusterId}" is not merge-ready.`);
+      }
+      const resolvedKey = matchesKey ? inputId : [...readyKeys].find(k => {
+        const pkg = state.stage4.packages[k];
+        return pkg && pkg.packageId === inputId;
+      }) || inputId;
+      if (packageAssignments.has(resolvedKey)) {
+        errors.push(`Package "${inputId}" is assigned to both "${packageAssignments.get(resolvedKey)}" and "${clusterId}".`);
+      } else {
+        packageAssignments.set(resolvedKey, clusterId);
+      }
+    }
+
+    for (const ref of clusterInputs) {
+      const refId = ref.replace("CLUSTER_", "");
+      if (!clusterIds.has(refId)) {
+        errors.push(`Cluster "${clusterId}" references CLUSTER_${refId}, but no cluster "${refId}" exists in the plan.`);
+      }
+      clusterRefs.set(refId, clusterId);
+    }
+  }
+
+  // Verify all merge-ready packages are assigned in at least one Round 1 cluster
+  for (const key of readyKeys) {
+    const pkg = state.stage4.packages[key];
+    const assignedByKey = packageAssignments.has(key);
+    const assignedById = pkg?.packageId && packageAssignments.has(pkg.packageId);
+    if (!assignedByKey && !assignedById) {
+      errors.push(`Merge-ready package "${pkg?.packageId || key}" is not assigned to any cluster.`);
+    }
+  }
+
+  // Verify the tree terminates: all Round 1 cluster outputs should eventually feed into a higher-round cluster
+  if (maxRound > 1) {
+    for (const [clusterId, cluster] of Object.entries(clusters)) {
+      if ((cluster.round || 1) === 1 && !clusterRefs.has(clusterId)) {
+        warnings.push(`Round 1 cluster "${clusterId}" is not consumed by any later-round cluster.`);
+      }
+    }
+  }
+
+  return { ok: errors.length === 0, errors, warnings };
 }
 
 function readRequiredInput(id, message) {
@@ -1099,6 +1336,237 @@ function bindDynamicEvents() {
     }
     finalizeRender();
   });
+
+  // ── Clustered Merge Handlers ──
+
+  bindIf("prepareClusterPlanBtn", () => {
+    if (!hasUsableStagePrompt("stage6")) return alert(missingStagePromptMessage("stage6"));
+    const ready = mergeReadyPackages();
+    if (!ready.length) return alert("No packages are currently eligible for Stage 06 merge.");
+
+    // Build default suggestion: groups of 3 in round 1, binary tree in round 2+
+    const ids = ready.map(pkg => pkg.packageId || pkg.key);
+    const suggestion = {};
+    const round1Ids = [];
+    let ci = 1;
+    for (let i = 0; i < ids.length; i += 3) {
+      const clusterId = String.fromCharCode(64 + ci); // A, B, C, ...
+      suggestion[clusterId] = { inputs: ids.slice(i, i + 3), round: 1 };
+      round1Ids.push(clusterId);
+      ci++;
+    }
+    // If >1 round-1 cluster, add a round-2 merge cluster
+    if (round1Ids.length > 1) {
+      const finalId = round1Ids.join("");
+      suggestion[finalId] = { inputs: round1Ids.map(id => `CLUSTER_${id}`), round: 2 };
+    }
+
+    // Reset to default cluster plan (mode stays "standard" until validateAndStart)
+    state.stage6.clusterPlan = createDefaultState().stage6.clusterPlan;
+    syncWorkflowState("STAGE6_CLUSTER_PLAN");
+    setActionSummary(`Cluster plan editor opened. ${ready.length} merge-ready package(s) to assign.`);
+    finalizeRender();
+
+    // Pre-fill the textarea after render creates it
+    requestAnimationFrame(() => {
+      const textarea = document.getElementById("clusterPlanInput");
+      if (textarea && !textarea.value.trim()) {
+        textarea.value = JSON.stringify(suggestion, null, 2);
+      }
+    });
+  });
+
+  bindIf("validateAndStartClusterBtn", () => {
+    const raw = readRequiredInput("clusterPlanInput", "Paste or edit the cluster plan JSON first.");
+    if (!raw) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      return alert("Invalid JSON: " + (e?.message || "parse error"));
+    }
+    const validation = validateClusterPlan(parsed);
+    if (!validation.ok) return alert("Cluster plan invalid:\n\n" + validation.errors.join("\n"));
+    if (validation.warnings.length) {
+      if (!confirm("Cluster plan warnings:\n\n" + validation.warnings.join("\n") + "\n\nProceed anyway?")) return;
+    }
+    initializeClusterPlan(parsed);
+    const firstCluster = state.stage6.clusterPlan.mergeOrder[0];
+    if (firstCluster) {
+      state.stage6.requestText = buildStage6ClusterRequest(firstCluster);
+      state.stage6.requestPrepared = true;
+      state.stage6.requestCopied = false;
+    }
+    saveState("cluster plan initialized", {
+      auditEvent: "CLUSTER_PLAN_INITIALIZED",
+      message: `Cluster merge plan initialized with ${state.stage6.clusterPlan.mergeOrder.length} cluster(s).`
+    }).catch(err => console.error("Persistence failed", err));
+    setActionSummary(`Cluster plan active — ${state.stage6.clusterPlan.mergeOrder.length} cluster(s). First cluster request is ready.`);
+    finalizeRender();
+  });
+
+  bindIf("cancelClusterPlanBtn", () => {
+    if (!confirm("Cancel the cluster plan and return to the standard merge flow?")) return;
+    state.stage6.clusterPlan = createDefaultState().stage6.clusterPlan;
+    clearPacket(state.stage6, "request");
+    state.stage6.mergeResultText = "";
+    state.stage6.mergeSavedAt = "";
+    state.stage6.mergeVerdict = "";
+    saveState("cluster plan cancelled", {
+      auditEvent: "CLUSTER_PLAN_CANCELLED",
+      message: "Cluster merge plan cancelled. Returned to standard merge flow."
+    }).catch(err => console.error("Persistence failed", err));
+    setActionSummary("Cluster plan cancelled. You can use standard merge or start a new cluster plan.");
+    finalizeRender();
+  });
+
+  bindIf("buildClusterRequestBtn", async () => {
+    if (!hasUsableStagePrompt("stage6")) return alert(missingStagePromptMessage("stage6"));
+    const cp = state.stage6.clusterPlan;
+    if (!cp || cp.mode !== "clustered") return alert("No active cluster plan.");
+    const currentCluster = cp.currentCluster;
+    if (!currentCluster) return alert("No current cluster to build a request for.");
+    state.stage6.requestText = buildStage6ClusterRequest(currentCluster);
+    state.stage6.requestPrepared = true;
+    state.stage6.requestCopied = false;
+    const snapshotPath = await writePromptSnapshot("stage6", getStagePromptText("stage6"));
+    if (snapshotPath) state.stage6._lastPromptSnapshotPath = snapshotPath;
+    saveState("cluster request built").catch(err => console.error("Persistence failed", err));
+    finalizeRender();
+  });
+
+  bindIf("saveClusterMergeResultBtn", async () => {
+    const value = readRequiredInput("clusterMergeReturnInput", "Paste the cluster merge result first.");
+    if (!value) return;
+    if (!confirmPlausibility("stage6", value)) return;
+    const cp = state.stage6.clusterPlan;
+    if (!cp || cp.mode !== "clustered") return alert("No active cluster plan.");
+    const clusterId = cp.currentCluster;
+    if (!clusterId) return alert("No current cluster.");
+
+    const mergeVerdict = parseMergeVerdict(value);
+    const isFailure = /blocked|requires\s*rework/i.test(mergeVerdict || "");
+
+    // Create cluster_merge_output manifest artifact
+    const cluster = cp.clusters?.[clusterId];
+    const logicalKey = `cluster_merge_output:${clusterId}`;
+    const previousHead = manifestArtifactList(state)
+      .filter(r => r.logicalKey === logicalKey)
+      .sort((a, b) => Number(b.revision || 0) - Number(a.revision || 0))[0] || null;
+
+    // Resolve parent artifact IDs from cluster inputs
+    const parentArtifactIds = (cluster?.inputs || []).map(inputId => {
+      if (inputId.startsWith("CLUSTER_")) {
+        return findClusterMergeArtifactId(inputId.replace("CLUSTER_", "")) || "";
+      }
+      const pkg = getPackagesInOrder().find(p => p.packageId === inputId || p.key === inputId);
+      return pkg?.implementationArtifactId || "";
+    }).filter(Boolean);
+
+    const artifactId = createOrReuseArtifactRecord(state, {
+      currentArtifactId: previousHead?.artifactId || findClusterMergeArtifactId(clusterId) || "",
+      previousHeadId: previousHead?.artifactId || "",
+      artifactType: "cluster_merge_output",
+      logicalKey,
+      stageProduced: "Stage 06",
+      text: value,
+      title: `Cluster ${clusterId} merge output`,
+      filename: `06_Cluster_${clusterId}_Merge.txt`,
+      parentArtifactIds,
+      consumedArtifactIds: [],
+      consumingStageContext: `Clustered merge output for cluster ${clusterId}.`,
+      sourceOrigin: "operator-paste",
+      attributes: {
+        clusterId,
+        mergeRound: cluster?.round || 1,
+        verdict: mergeVerdict || ""
+      }
+    });
+
+    if (isFailure) {
+      recordClusterFailure(clusterId);
+      const canReplan = isReclusterUnlocked(clusterId);
+      setActionSummary(
+        `Cluster ${clusterId} merge failed — verdict: ${mergeVerdict}.` +
+        (canReplan ? " Re-clustering is now unlocked for this cluster." : " Retry, or re-cluster unlocks after 2 consecutive failures."),
+        "warn"
+      );
+    } else {
+      if (!cp.completedClusters.includes(clusterId)) cp.completedClusters.push(clusterId);
+      const remaining = cp.mergeOrder.filter(id => !cp.completedClusters.includes(id));
+      if (remaining.length === 0) {
+        setActionSummary(`Cluster ${clusterId} merge saved — all clusters complete. Ready to promote final result.`);
+      } else {
+        setActionSummary(`Cluster ${clusterId} merge saved — ${remaining.length} cluster(s) remaining.`);
+      }
+    }
+
+    clearPacket(state.stage6, "request");
+    reconcileArtifactStatuses(state);
+    await persistManifest(state.manifest);
+    await saveState("cluster merge result saved", {
+      auditEvent: "ARTIFACT_SAVED",
+      artifactIds: [artifactId],
+      message: `Cluster ${clusterId} merge result saved. Verdict: ${mergeVerdict || "unknown"}.`
+    }).catch(err => console.error("Persistence failed", err));
+    finalizeRender();
+  });
+
+  bindIf("advanceClusterBtn", () => {
+    const cp = state.stage6.clusterPlan;
+    if (!cp || cp.mode !== "clustered") return alert("No active cluster plan.");
+    advanceToNextCluster();
+    clearPacket(state.stage6, "request");
+    const next = cp.currentCluster;
+    if (next) {
+      setActionSummary(`Advanced to cluster ${next}. Build the request when ready.`);
+    } else {
+      setActionSummary("All clusters processed. You can promote the final result.");
+    }
+    saveState("advanced to next cluster").catch(err => console.error("Persistence failed", err));
+    finalizeRender();
+  });
+
+  bindIf("promoteFinalClusterBtn", async () => {
+    const cp = state.stage6.clusterPlan;
+    if (!cp || cp.mode !== "clustered") return alert("No active cluster plan.");
+    const lastCompleted = (cp.completedClusters || []).slice(-1)[0];
+    if (!lastCompleted) return alert("No completed cluster to promote.");
+    if (!confirm(`Promote cluster ${lastCompleted} output as the final merge result?`)) return;
+    promoteClusterToFinalMerge(lastCompleted);
+    state.stage6.mergeVerdict = parseMergeVerdict(state.stage6.mergeResultText);
+    const verdict = state.stage6.mergeVerdict;
+    setActionSummary(`Final merge result promoted from cluster ${lastCompleted}.${verdict ? " Verdict: " + verdict + "." : ""}`);
+    await persistManifest(state.manifest);
+    await saveState("cluster merge promoted to final", {
+      auditEvent: "CLUSTER_MERGE_PROMOTED",
+      message: `Cluster ${lastCompleted} promoted to final merge result.`
+    }).catch(err => console.error("Persistence failed", err));
+    finalizeRender();
+  });
+
+  bindIf("replanClustersBtn", () => {
+    const cp = state.stage6.clusterPlan;
+    if (!cp) return;
+    if (!confirm("Re-open the cluster plan editor? Completed cluster results will be preserved.")) return;
+    const preserved = (cp.completedClusters || []).slice();
+    state.stage6.clusterPlan = {
+      ...createDefaultState().stage6.clusterPlan,
+      completedClusters: preserved
+      // mode stays "standard" — re-enters planning state
+    };
+    clearPacket(state.stage6, "request");
+    syncWorkflowState("STAGE6_CLUSTER_PLAN");
+    saveState("cluster re-plan initiated", {
+      auditEvent: "CLUSTER_REPLAN",
+      message: `Cluster re-plan initiated. ${preserved.length} completed cluster(s) preserved.`
+    }).catch(err => console.error("Persistence failed", err));
+    setActionSummary(`Re-planning clusters. ${preserved.length} completed cluster(s) preserved.`);
+    finalizeRender();
+  });
+
+  // ── End Clustered Merge Handlers ──
+
   bindIf("archiveStaleBtn", async () => {
     const archivable = manifestArtifactList(state).filter(r =>
       (r.status === "superseded" || r.status === "orphaned" || r.status === "stale") &&
@@ -1504,12 +1972,26 @@ async function openAnalyticsDashboard() {
 }
 
 function analyticsTemplate(dataJson) {
+  const hardened = typeof window.__CHARTJS_INLINE === "string";
+  const chartjsTag = hardened
+    ? `<script>/* Chart.js 4.4.1 - bundled offline */\n${window.__CHARTJS_INLINE}<\/script>`
+    : `<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>`;
+  const fontTag = hardened
+    ? `<!-- Hardened: no external font loading. System fonts used. -->`
+    : `<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">`;
+  const cspTag = hardened
+    ? `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:;">`
+    : ``;
+  const fontFallback = hardened
+    ? `--mono:'Consolas','Courier New',monospace;--sans:-apple-system,'Segoe UI',sans-serif`
+    : `--mono:'JetBrains Mono',monospace;--sans:'IBM Plex Sans',-apple-system,sans-serif`;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pipeline Analytics</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>
+${cspTag}
+<title>Pipeline Analytics${hardened ? " [HARDENED]" : ""}</title>
+${fontTag}
+${chartjsTag}
 <style>
-:root{--bg:#000;--surface:rgba(255,255,255,0.03);--border:rgba(255,255,255,0.06);--text:#e5e5e5;--muted:#737373;--faint:#525252;--ghost:#374151;--accent:#6ee7b7;--green:#4ade80;--yellow:#fbbf24;--red:#ef4444;--mono:'JetBrains Mono',monospace;--sans:'IBM Plex Sans',-apple-system,sans-serif}
+:root{--bg:#000;--surface:rgba(255,255,255,0.03);--border:rgba(255,255,255,0.06);--text:#e5e5e5;--muted:#737373;--faint:#525252;--ghost:#374151;--accent:#6ee7b7;--green:#4ade80;--yellow:#fbbf24;--red:#ef4444;${fontFallback}}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh}
 .c{max-width:980px;margin:0 auto;padding:36px 24px 60px}
 .tag{font:700 10px/1 var(--mono);text-transform:uppercase;letter-spacing:3px;color:var(--accent);margin-bottom:10px}
@@ -1559,6 +2041,11 @@ h1{font-size:26px;font-weight:700}.sub{font:400 12px/1 var(--mono);color:var(--m
 <div class="sec"><div class="st">Activity Timeline</div><div class="tl" id="tL"></div></div>
 <div class="ft">Multi-LLM Pipeline v5 · Operator Console Analytics</div>
 </div>
+<div style="position:fixed;bottom:20px;right:20px;display:flex;gap:8px;z-index:100">
+<button id="xPng" style="background:#6ee7b7;color:#000;border:none;border-radius:10px;padding:10px 16px;font:700 12px/1 var(--mono);cursor:pointer;box-shadow:0 4px 16px rgba(110,231,183,0.3);transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">${hardened ? "🖨️ Print/PDF" : "📷 PNG"}</button>
+<button id="xHtml" style="background:#93c5fd;color:#000;border:none;border-radius:10px;padding:10px 16px;font:700 12px/1 var(--mono);cursor:pointer;box-shadow:0 4px 16px rgba(147,197,253,0.3);transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">💾 HTML</button>
+</div>
+<style>@media print{[style*="position:fixed"]{display:none!important}body{background:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
 <script>
 const DATA=${dataJson};
 const esc=s=>{const d=document.createElement("div");d.textContent=s;return d.innerHTML};
@@ -1577,6 +2064,11 @@ function rD(){const p=document.getElementById("dP"),pkg=DATA.packages.find(x=>x.
 function rT(){document.getElementById("tB").innerHTML=DATA.packages.map(p=>{const sb=p.blocked?'<span class="badge br">Blocked</span>':p.status==="Complete"?'<span class="badge bg">Complete</span>':p.status==="Partial"?'<span class="badge by">Partial</span>':'<span class="badge bx">—</span>';const db=p.disposition==="ACCEPT"?'<span class="badge bg">ACCEPT</span>':p.disposition==="REWORK"?'<span class="badge by">REWORK</span>':'<span class="badge bx">—</span>';return'<div class="tr'+(sel===p.id?" sel":"")+'" data-p="'+esc(p.id)+'"><span class="ri"'+(p.blocked?' style="color:var(--red)"':"")+">"+esc(p.id)+"</span><span>"+sb+'</span><span style="text-align:right">'+db+'</span><span class="rr">'+(p.rev>0?"r"+p.rev:"—")+'</span><span class="rr">'+(p.files.length?p.files.length+" file"+(p.files.length>1?"s":""):"—")+"</span></div>"}).join("");document.querySelectorAll(".tr").forEach(r=>r.addEventListener("click",()=>{sel=sel===r.dataset.p?null:r.dataset.p;rP();rD();rT()}))}
 function rTL(){document.getElementById("tL").innerHTML=DATA.timeline.map(t=>'<div class="ti"><div class="td" style="background:'+sc(t.stage)+";box-shadow:0 0 6px "+sc(t.stage)+'44"></div><span class="tt">'+esc(t.time.slice(0,16))+'</span><span class="te'+(t.event.includes("BLOCKED")?" bl":"")+'">'+esc(t.event)+"</span></div>").join("")}
 rH();rS();rG();rP();rD();rT();rA();rTL();
+document.getElementById("xPng").addEventListener("click",async()=>{${hardened
+  ? `window.print();`
+  : `const{default:h2c}=await import("https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm");const el=document.getElementById("d");const c=await h2c(el,{backgroundColor:"#000",scale:2,useCORS:true});const a=document.createElement("a");a.href=c.toDataURL("image/png");a.download="pipeline_analytics_"+(DATA.project.name||"project").replace(/\\\\s+/g,"_")+".png";a.click();`
+}});
+document.getElementById("xHtml").addEventListener("click",()=>{const a=document.createElement("a");a.href="data:text/html;charset=utf-8,"+encodeURIComponent(document.documentElement.outerHTML);a.download="pipeline_analytics_"+(DATA.project.name||"project").replace(/\\s+/g,"_")+".html";a.click()});
 <\/script></body></html>`;
 }
 

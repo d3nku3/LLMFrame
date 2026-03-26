@@ -139,6 +139,11 @@ function renderWorkspaceIndicator() {
   // Domain pack selector
   parts.push(`<div id="domainPackSlot" style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;"></div>`);
 
+  // Protocol version indicator
+  if (typeof PROTOCOL_VERSION === "string" && PROTOCOL_VERSION) {
+    parts.push(`<span style="font:400 10px/1 var(--mono,monospace);color:var(--muted,#737373);margin-left:8px;white-space:nowrap;" title="Pipeline Protocol version (calibrated ${typeof PROTOCOL_CALIBRATION_DATE === "string" ? PROTOCOL_CALIBRATION_DATE : "unknown"})">Protocol v${escapeHtml(PROTOCOL_VERSION)}</span>`);
+  }
+
   el.innerHTML = parts.join("");
 
   // Populate domain pack dropdown async
@@ -411,8 +416,18 @@ function renderCurrentAction(workflowSnapshot = null) {
     copyStage5: renderCopyRequestCard(`Create the review request${pkg ? ` for ${pkg.packageId || pkg.filename}` : ""}`, "Copy this into your Code Reviewer chat. The request is bound to the current implementation output of this package.", pkg ? pkg.reviewRequestText : "", "copyStage5Btn", "Run the request in a fresh external chat. Bring back the full review report and save it here. The review must repeat the binding block exactly.", recommendedLLMFor("stage5"), pkg),
     saveStage5: renderSavePackageArtifactCard(pkg, "Save the review result", "Paste the full review report for this package. The tool will check whether the review belongs to the current implementation output and then interpret the final disposition in plain language.", "stage5ReturnInput", "Save review result", "After save, the tool will either return this package to rework, mark it eligible for Stage 06 handoff, flag inconsistent review metadata, or tell you that the review belongs to an older output."),
     packageAccepted: renderPackageAcceptedCard(pkg),
-    copyStage6: renderCopyRequestCard("Create the merge request", "Copy this into your Merge Coordinator chat. This request contains only exact accepted output/review pairs.", state.stage6.requestText, "copyStage6Btn", "Run this in a fresh external chat, then bring back the integration result and save it here.", recommendedLLMFor("stage6")),
-    saveStage6: renderSaveMergeResultCard(),
+    clusterPlan: renderClusterPlanCard(),
+    saveClusterMerge: renderSaveClusterMergeCard(),
+    validateClusterMerge: renderClusterMergeImportedCard(),
+    copyStage6: isClusteredMergeActive()
+      ? renderCopyRequestCard(
+          `Cluster ${state.stage6.clusterPlan.currentCluster} merge request`,
+          `Copy this into your Merge Coordinator chat. This request contains only the inputs for cluster ${state.stage6.clusterPlan.currentCluster}.`,
+          state.stage6.requestText, "copyStage6Btn",
+          "Run this in a fresh external chat, then bring back the cluster merge output and save it here.",
+          recommendedLLMFor("stage6"))
+      : renderCopyRequestCard("Create the merge request", "Copy this into your Merge Coordinator chat. This request contains only exact accepted output/review pairs.", state.stage6.requestText, "copyStage6Btn", "Run this in a fresh external chat, then bring back the integration result and save it here.", recommendedLLMFor("stage6")),
+    saveStage6: isClusteredMergeActive() ? renderSaveClusterMergeCard() : renderSaveMergeResultCard(),
     mergeComplete: renderMergeCompleteCard()
   };
 
@@ -924,6 +939,7 @@ function renderChoosePackageCard() {
       ${renderPackagePicker("")}
       <div class="sub-actions">
         <button class="ghost-btn" id="prepareMergeBtn" type="button" ${readyCount && mergePromptReady ? "" : "disabled"}>Create Stage 06 merge request</button>
+        ${readyCount >= 5 && mergePromptReady ? `<button class="ghost-btn" id="prepareClusterPlanBtn" type="button">Clustered merge (${readyCount} packages)</button>` : ""}
       </div>
       <div class="notice ${mergePromptReady ? "success" : "danger"}" style="margin-top:12px;">${escapeHtml(stagePromptSourceLabel("stage6"))}</div>
     </div>
@@ -1129,6 +1145,7 @@ function renderPackageAcceptedCard(pkg) {
       <div class="sub-actions">
         <button class="ghost-btn" type="button" data-open-package-chooser="true">Open package list</button>
         <button class="ghost-btn" id="prepareMergeBtnAlt" type="button" ${mergeReady.length && mergePromptReady ? "" : "disabled"}>Create Stage 06 merge request now</button>
+        ${mergeReady.length >= 5 && mergePromptReady ? `<button class="ghost-btn" id="prepareClusterPlanBtn" type="button">Clustered merge (${mergeReady.length} packages)</button>` : ""}
       </div>
       <div class="notice ${mergePromptReady ? "success" : "danger"}" style="margin-top:12px;">${escapeHtml(stagePromptSourceLabel("stage6"))}</div>
     </div>
@@ -1218,6 +1235,151 @@ function renderMergeCompleteCard() {
     <div class="section-block">
       <h3>What happens next</h3>
       <p class="small">You can keep this merge result, export a full workspace backup, or clear the merge state if you need to prepare a different merge set later.</p>
+    </div>
+  `;
+}
+
+
+// ── Cluster Merge UI Rendering ──
+
+function renderClusterPlanCard() {
+  const ready = mergeReadyPackages();
+  const cp = state.stage6.clusterPlan;
+  const isEditing = cp.mode === "clustered" && cp.mergeOrder.length > 0;
+  const completedCount = cp.completedClusters?.length || 0;
+  const totalCount = cp.mergeOrder?.length || 0;
+
+  // Parse suggested clusters from Stage 03 Master Orchestration if available
+  const hasSuggestion = state.stage3.rawOutputText.includes("Suggested Merge Clusters");
+
+  if (isEditing && completedCount < totalCount) {
+    // Mid-execution: show progress and current cluster
+    const currentId = cp.currentCluster;
+    const cluster = cp.clusters[currentId];
+    const clusterInputs = cluster ? (cluster.inputs || []).join(", ") : "none";
+    const round = cluster ? cluster.round : "?";
+    return `
+      <div class="section-label">Current action</div>
+      <h2 class="current-title">Clustered merge — Round ${round}, Cluster ${escapeHtml(currentId)}</h2>
+      <p class="lead">Progress: ${completedCount} of ${totalCount} clusters merged.</p>
+      ${renderClusterProgressBar(cp)}
+      <div class="section-block">
+        <h3>Current cluster</h3>
+        <div class="notice">Cluster ${escapeHtml(currentId)}: ${escapeHtml(clusterInputs)}</div>
+      </div>
+      <div class="section-block">
+        <h3>Do this now</h3>
+        <button class="primary-btn" id="buildClusterRequestBtn" type="button">Build merge request for Cluster ${escapeHtml(currentId)}</button>
+      </div>
+      <div class="section-block">
+        <h3>What happens next</h3>
+        <p class="small">The merge request will contain only the inputs for this cluster. Copy it to your Merge Coordinator chat, bring back the result, and save it here.</p>
+      </div>
+    `;
+  }
+
+  // Initial cluster planning
+  return `
+    <div class="section-label">Current action</div>
+    <h2 class="current-title">Plan cluster groups for Stage 06</h2>
+    <p class="lead">${ready.length} packages are eligible. Assign them to clusters of up to 3 for iterative merging.</p>
+    <div class="section-block">
+      <h3>How this works</h3>
+      <p class="small">Instead of merging all packages at once, you group them into small clusters. Each cluster is merged separately, then cluster outputs are merged together. This keeps each merge pass within context limits.</p>
+      ${hasSuggestion ? `<div class="notice success">Stage 03 included a cluster suggestion. It has been pre-loaded below.</div>` : ""}
+    </div>
+    <div class="section-block">
+      <h3>Cluster assignment</h3>
+      <p class="small">Enter cluster assignments as JSON. Each cluster maps a letter ID to an array of package IDs and a round number. Round 1 clusters contain packages. Round 2+ clusters contain CLUSTER_ references.</p>
+      <textarea id="clusterPlanInput" class="mono" rows="12" placeholder='${escapeHtml(JSON.stringify({
+        A: { inputs: ["T1", "T2", "T3"], round: 1 },
+        B: { inputs: ["T4", "T5", "T6"], round: 1 },
+        AB: { inputs: ["CLUSTER_A", "CLUSTER_B"], round: 2 }
+      }, null, 2))}'>${isEditing ? escapeHtml(JSON.stringify(cp.clusters, null, 2)) : ""}</textarea>
+      <div id="clusterPlanValidation" class="notice" style="margin-top:8px;display:none;"></div>
+    </div>
+    <div class="section-block">
+      <h3>Do this now</h3>
+      <button class="primary-btn" id="validateAndStartClusterBtn" type="button">Validate and start clustered merge</button>
+      <div class="sub-actions">
+        <button class="ghost-btn" id="cancelClusterPlanBtn" type="button">Cancel — use standard merge instead</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderClusterProgressBar(cp) {
+  if (!cp || !cp.mergeOrder.length) return "";
+  const items = cp.mergeOrder.map(id => {
+    const done = cp.completedClusters.includes(id);
+    const active = cp.currentCluster === id && !done;
+    const cluster = cp.clusters[id];
+    const round = cluster ? cluster.round : "?";
+    const icon = done ? "✓" : active ? "●" : "○";
+    const tone = done ? "success" : active ? "primary" : "";
+    return `<span class="tag ${tone}" style="margin:2px;">${icon} ${escapeHtml(id)} (R${round})</span>`;
+  });
+  return `<div class="tag-row" style="flex-wrap:wrap;margin:8px 0;">${items.join("")}</div>`;
+}
+
+function renderSaveClusterMergeCard() {
+  const cp = state.stage6.clusterPlan;
+  const currentId = cp.currentCluster || "?";
+  const cluster = cp.clusters[currentId];
+  const clusterInputs = cluster ? (cluster.inputs || []).join(", ") : "";
+  const completedCount = cp.completedClusters?.length || 0;
+  const totalCount = cp.mergeOrder?.length || 0;
+  const failCount = cp.failureCounts?.[currentId] || 0;
+
+  return `
+    <div class="section-label">Current action</div>
+    <h2 class="current-title">Save Cluster ${escapeHtml(currentId)} merge output</h2>
+    <p class="lead">Paste the returned merge output for this cluster. Progress: ${completedCount}/${totalCount} clusters complete.</p>
+    ${renderClusterProgressBar(cp)}
+    <div class="section-block">
+      <h3>What you need now</h3>
+      <div class="notice">Cluster ${escapeHtml(currentId)}: ${escapeHtml(clusterInputs)}</div>
+      ${failCount > 0 ? `<div class="notice warn">This cluster has failed ${failCount} time${failCount === 1 ? "" : "s"}.${failCount >= 2 ? " Re-clustering is now available." : ""}</div>` : ""}
+    </div>
+    <div class="section-block compact">
+      <h3>Paste the cluster merge output</h3>
+      <p class="small">Paste the full output from the Merge Coordinator for this cluster. It should contain a Delivery Report.</p>
+      <textarea id="clusterMergeReturnInput" class="mono" placeholder="Paste the cluster merge output here."></textarea>
+    </div>
+    <div class="section-block">
+      <h3>Do this now</h3>
+      <button class="primary-btn" id="saveClusterMergeResultBtn" type="button">Save cluster merge output</button>
+      ${failCount >= 2 ? `<div class="sub-actions"><button class="ghost-btn" id="replanClustersBtn" type="button">Revise cluster plan</button></div>` : ""}
+    </div>
+  `;
+}
+
+function renderClusterMergeImportedCard() {
+  const cp = state.stage6.clusterPlan;
+  const justCompletedId = cp.completedClusters[cp.completedClusters.length - 1] || "";
+  const remaining = cp.mergeOrder.filter(id => !cp.completedClusters.includes(id));
+  const completedCount = cp.completedClusters.length;
+  const totalCount = cp.mergeOrder.length;
+  const isLast = remaining.length === 0;
+
+  return `
+    <div class="section-label">Current action</div>
+    <h2 class="current-title">${isLast ? "All clusters merged — promote to final" : `Cluster ${escapeHtml(justCompletedId)} saved — advance`}</h2>
+    <p class="lead">${completedCount} of ${totalCount} clusters complete.${isLast ? " Ready to finalize." : ""}</p>
+    ${renderClusterProgressBar(cp)}
+    <div class="section-block">
+      <h3>Do this now</h3>
+      ${isLast
+        ? `<button class="primary-btn" id="promoteFinalClusterBtn" type="button">Promote final cluster output to merge result</button>`
+        : `<button class="primary-btn" id="advanceClusterBtn" type="button">Advance to next cluster: ${escapeHtml(remaining[0] || "")}</button>`
+      }
+    </div>
+    <div class="section-block">
+      <h3>What happens next</h3>
+      <p class="small">${isLast
+        ? "The last cluster output will become the official Integration Report. All intermediate cluster artifacts will be marked as superseded."
+        : `The next cluster (${escapeHtml(remaining[0] || "")}) will be prepared for merging. You will copy its request to the Merge Coordinator and bring back the output.`
+      }</p>
     </div>
   `;
 }

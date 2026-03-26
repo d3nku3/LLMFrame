@@ -22,6 +22,11 @@ const METADATA_FILE = "workspace_metadata.json";
 const IDB_HANDLE_STORE = "workspaceHandles";
 const IDB_HANDLE_KEY = "lastWorkspaceRoot";
 const BACKUP_VERSION = "3.0";
+// Protocol version — must match pipeline_protocol_v1.json.version.
+// Duplication is intentional (Console has no runtime protocol loader yet).
+// C1 assertion in 08_events.js will flag drift if these fall out of sync.
+const PROTOCOL_VERSION = "1.3.1";
+const PROTOCOL_CALIBRATION_DATE = "2026-03-26";
 const LEGACY_STORAGE_KEY = "operatorConsoleRebuiltStage01to06Guided_v2";
 const SECURITY_LIMITS = Object.freeze({
   maxBackupImportBytes: 5 * 1024 * 1024,
@@ -155,11 +160,24 @@ const WORKFLOW_STATES = Object.freeze({
   STAGE5_PACKAGE_ACCEPTED: "STAGE5_PACKAGE_ACCEPTED",
   STAGE6_PREPARATION_BLOCKED: "STAGE6_PREPARATION_BLOCKED",
   STAGE6_CANDIDATES_AVAILABLE: "STAGE6_CANDIDATES_AVAILABLE",
+  STAGE6_CLUSTER_PLAN: "STAGE6_CLUSTER_PLAN",
+  STAGE6_CLUSTER_MERGE_SENT: "STAGE6_CLUSTER_MERGE_SENT",
+  STAGE6_CLUSTER_MERGE_IMPORTED: "STAGE6_CLUSTER_MERGE_IMPORTED",
   STAGE6_REQUEST_READY: "STAGE6_REQUEST_READY",
   STAGE6_WAITING_RETURN: "STAGE6_WAITING_RETURN",
   STAGE6_COMPLETED: "STAGE6_COMPLETED"
 });
 
+// WORKFLOW_META — operator-facing state metadata.
+// expectedReturn values are UI display hints, not protocol tokens.
+// Protocol-canonical artifact names (from protocol.stages[S].artifact_produced):
+//   Stage 01: "Master Briefing"          — Console says "Final Master Briefing"
+//   Stage 02: "Architecture Spec"        — matches
+//   Stage 03: "Master Orchestration File + Work Packages" — Console says "Stage 03 orchestration result"
+//   Stage 04: "Delivery Report"          — Console says "Implementation output for the current package"
+//   Stage 05: "Review Report"            — Console says "Review report for the current package"
+//   Stage 06: "Integration Report"       — matches
+// Divergences are intentional (operator context > protocol precision in the UI layer).
 const WORKFLOW_META = Object.freeze({
   [WORKFLOW_STATES.WORKSPACE_NOT_SELECTED]: { stageLabel: "Workspace", stateLabel: "Workspace folder not selected", actionKey: "selectWorkspace" },
   [WORKFLOW_STATES.SETUP_INPUT_NEEDED]: { stageLabel: "Setup", stateLabel: "Select LLMs and confirm", actionKey: "setup" },
@@ -198,6 +216,9 @@ const WORKFLOW_META = Object.freeze({
   [WORKFLOW_STATES.STAGE5_PACKAGE_ACCEPTED]: { stageLabel: "Stage 05", stateLabel: "Package accepted for merge consideration", actionKey: "packageAccepted" },
   [WORKFLOW_STATES.STAGE6_PREPARATION_BLOCKED]: { stageLabel: "Stage 06", stateLabel: "Merge preparation not yet possible", actionKey: "choosePackage" },
   [WORKFLOW_STATES.STAGE6_CANDIDATES_AVAILABLE]: { stageLabel: "Stage 06", stateLabel: "Merge candidates available", actionKey: "choosePackage" },
+  [WORKFLOW_STATES.STAGE6_CLUSTER_PLAN]: { stageLabel: "Stage 06", stateLabel: "Cluster plan — assign packages to merge groups", actionKey: "clusterPlan" },
+  [WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_SENT]: { stageLabel: "Stage 06", stateLabel: "Cluster merge request sent", actionKey: "saveClusterMerge", expectedReturn: "Cluster merge output" },
+  [WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_IMPORTED]: { stageLabel: "Stage 06", stateLabel: "Cluster merge output imported — validating", actionKey: "validateClusterMerge" },
   [WORKFLOW_STATES.STAGE6_REQUEST_READY]: { stageLabel: "Stage 06", stateLabel: "Stage 06 request ready to copy", actionKey: "copyStage6", expectedReturn: "Integration Report" },
   [WORKFLOW_STATES.STAGE6_WAITING_RETURN]: { stageLabel: "Stage 06", stateLabel: "Waiting for Stage 06 return", actionKey: "saveStage6", expectedReturn: "Integration Report" },
   [WORKFLOW_STATES.STAGE6_COMPLETED]: { stageLabel: "Stage 06", stateLabel: "Merge completed", actionKey: "mergeComplete" }
@@ -240,7 +261,10 @@ const WORKFLOW_TRANSITIONS = Object.freeze({
   [WORKFLOW_STATES.STAGE5_REVIEW_STALE]: ["PREPARE_STAGE5_REQUEST", "SELECT_PACKAGE", "CLEAR_PACKAGE"],
   [WORKFLOW_STATES.STAGE5_PACKAGE_ACCEPTED]: ["SELECT_PACKAGE", "PREPARE_STAGE6_REQUEST", "CLEAR_PACKAGE"],
   [WORKFLOW_STATES.STAGE6_PREPARATION_BLOCKED]: ["SELECT_PACKAGE", "SAVE_STAGE5_RESULT", "SAVE_STAGE4_RESULT"],
-  [WORKFLOW_STATES.STAGE6_CANDIDATES_AVAILABLE]: ["PREPARE_STAGE6_REQUEST", "SELECT_PACKAGE"],
+  [WORKFLOW_STATES.STAGE6_CANDIDATES_AVAILABLE]: ["PREPARE_STAGE6_REQUEST", "PREPARE_CLUSTER_PLAN", "SELECT_PACKAGE"],
+  [WORKFLOW_STATES.STAGE6_CLUSTER_PLAN]: ["START_CLUSTER_MERGE", "CLEAR_STAGE6"],
+  [WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_SENT]: ["SAVE_CLUSTER_MERGE_RESULT", "CLEAR_STAGE6"],
+  [WORKFLOW_STATES.STAGE6_CLUSTER_MERGE_IMPORTED]: ["ADVANCE_CLUSTER", "REPLAN_CLUSTERS", "CLEAR_STAGE6"],
   [WORKFLOW_STATES.STAGE6_REQUEST_READY]: ["COPY_STAGE6_REQUEST", "REBUILD_STAGE6_REQUEST", "CLEAR_STAGE6"],
   [WORKFLOW_STATES.STAGE6_WAITING_RETURN]: ["SAVE_STAGE6_RESULT", "CLEAR_STAGE6"],
   [WORKFLOW_STATES.STAGE6_COMPLETED]: ["DOWNLOAD_MERGE_RESULT", "CLEAR_STAGE6", "RESET_WORKSPACE"]

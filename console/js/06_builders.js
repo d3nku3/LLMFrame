@@ -139,6 +139,41 @@ function buildStage6Request(mergePackages) {
   ]);
 }
 
+function buildStage6ClusterRequest(clusterId) {
+  const cp = state.stage6.clusterPlan;
+  const cluster = cp.clusters[clusterId];
+  if (!cluster) return "";
+  const round = cluster.round || 1;
+  const totalClusters = cp.mergeOrder.length;
+  const completedCount = cp.completedClusters.length;
+  const clusterContent = getClusterInputText(clusterId);
+  const otherClusters = cp.mergeOrder
+    .filter(id => id !== clusterId && !cp.completedClusters.includes(id))
+    .map(id => `- ${id}: ${(cp.clusters[id]?.inputs || []).join(", ")}`)
+    .join("\n");
+
+  return buildRequestPacket("Use this in a fresh chat with one of your stronger available LLMs.", "stage6", [
+    ["PROJECT NAME", state.projectName.trim() || "Unnamed project"],
+    ["CURRENT ARCHITECTURE SPEC", safeText(state.stage2.artifactText).trim()],
+    [
+      "OPERATOR NOTE — CLUSTERED MERGE",
+      [
+        `This is a clustered merge: Round ${round}, Cluster ${clusterId}.`,
+        `Inputs: ${(cluster.inputs || []).join(", ")}`,
+        `Progress: ${completedCount}/${totalClusters} clusters completed.`,
+        "",
+        "Merge these inputs as if they were the complete set. Produce a Delivery Report and Integration Report as normal.",
+        "The operator will combine cluster outputs in a subsequent merge round."
+      ].join("\n")
+    ],
+    [
+      "MERGE INPUTS FOR THIS CLUSTER",
+      clusterContent
+    ],
+    ["REMAINING CLUSTERS NOT IN THIS REQUEST", otherClusters || null]
+  ]);
+}
+
 function buildPauseResponsePacket() {
   const answered = safeText(state.stage3.pauseAnswerDraft).trim();
   const questionnaire = safeText(state.stage3.pauseQuestionnaireText).trim();
