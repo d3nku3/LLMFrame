@@ -550,6 +550,11 @@ async function loadPromptFilesFromDirectoryHandle(handle) {
     console.warn("Duplicate prompt files detected:\n" + duplicateWarnings.join("\n"));
   }
   setWorkspaceStatus(loaded ? `Imported ${loaded} stage prompt file(s) safely.${duplicateWarnings.length ? ` Warning: ${duplicateWarnings.length} stage(s) had duplicate files.` : ""}` : "No matching stage prompt files were imported.", loaded ? (duplicateWarnings.length ? "warn" : "success") : "warn");
+  // C1: Try loading pipeline_protocol_v1.json from the same folder
+  const protocolLoaded = await tryLoadProtocolFromFolder(handle);
+  if (protocolLoaded) {
+    console.log("Protocol-derived constants applied (STAGE_PROMPT_IMPORTS, PLAUSIBILITY_RULES labels, expectAnywhere).");
+  }
   saveState("prompt files imported").catch(err => console.error("Persistence failed", err));
   render();
   return { loaded, missingStageKeys };
@@ -640,77 +645,120 @@ function clearPacket(target, prefix) {
   target[`${prefix}Copied`] = false;
 }
 
+// ── Runtime Protocol Loading (C1) ──
+// Loads pipeline_protocol_v1.json from the prompt folder at runtime.
+// Derives STAGE_PROMPT_IMPORTS and PLAUSIBILITY_RULES from the loaded protocol.
+// Falls back to hardcoded values if the file is not found.
+
+async function tryLoadProtocolFromFolder(dirHandle) {
+  const PROTOCOL_FILENAME = "pipeline_protocol_v1.json";
+  // Search order: prompt folder first, then workspace root.
+  // This allows a single protocol file in the repo root to serve all domain packs.
+  const candidates = [
+    { handle: dirHandle, label: "prompt folder" },
+    { handle: workspaceRootHandle, label: "workspace root" }
+  ].filter(c => c.handle);
+
+  for (const { handle, label } of candidates) {
+    try {
+      const fileHandle = await handle.getFileHandle(PROTOCOL_FILENAME);
+      const file = await fileHandle.getFile();
+      const text = await file.text();
+      const protocol = JSON.parse(text);
+      if (!protocol?.version || !protocol?.stages) {
+        console.warn(`Protocol file found in ${label} ("${handle.name}") but missing required fields (version, stages).`);
+        continue;
+      }
+      loadedProtocol = protocol;
+      applyLoadedProtocol(protocol);
+      console.log(`Protocol v${protocol.version} loaded from ${label}: "${handle.name}/${PROTOCOL_FILENAME}"`);
+      return true;
+    } catch (e) {
+      if (e?.name !== "NotFoundError") {
+        console.warn(`Failed to load protocol from ${label}:`, e?.message || e);
+      }
+    }
+  }
+  console.log(`No ${PROTOCOL_FILENAME} found in prompt folder or workspace root — using hardcoded fallback.`);
+  return false;
+}
+
+function applyLoadedProtocol(protocol) {
+  // 1. Update version
+  PROTOCOL_VERSION = protocol.version;
+  if (protocol.calibration_date) PROTOCOL_CALIBRATION_DATE = protocol.calibration_date;
+
+  // 2. Derive STAGE_PROMPT_IMPORTS from protocol stages
+  for (const [stageKey, stageDef] of Object.entries(protocol.stages)) {
+    if (STAGE_PROMPT_IMPORTS[stageKey]) {
+      STAGE_PROMPT_IMPORTS[stageKey] = {
+        label: stageDef.label || STAGE_PROMPT_IMPORTS_FALLBACK[stageKey]?.label || "",
+        number: stageDef.number || STAGE_PROMPT_IMPORTS_FALLBACK[stageKey]?.number || ""
+      };
+    }
+  }
+
+  // 3. Derive PLAUSIBILITY_RULES labels and expectAnywhere from protocol
+  for (const [stageKey, stageDef] of Object.entries(protocol.stages)) {
+    if (!PLAUSIBILITY_RULES[stageKey]) continue;
+    // Update label from artifact_produced
+    if (stageDef.artifact_produced) {
+      PLAUSIBILITY_RULES[stageKey].label = stageDef.artifact_produced;
+    }
+    // Rebuild expectAnywhere from frozen_tokens (pick tokens that are distinctive)
+    if (stageDef.frozen_tokens?.length) {
+      const regexes = stageDef.frozen_tokens
+        .filter(t => t.length > 3 && !/^(CRITICAL_RULE|DO_NOT_BREAK|CRITICAL|MAJOR|MINOR|NOTE)$/.test(t))
+        .slice(0, 4)
+        .map(t => new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s*"), "i"));
+      if (regexes.length) {
+        PLAUSIBILITY_RULES[stageKey].expectAnywhere = regexes;
+      }
+    }
+  }
+
+  // 4. Update protocol version display if render is available
+  if (typeof render === "function") {
+    try { render(); } catch (_) {}
+  }
+}
+
 // ── Paste plausibility checks ──
-// Protocol alignment (C1):
+// Protocol-derived fields (populated by applyLoadedProtocol if protocol is loaded):
 //   label             ← protocol.stages[S].artifact_produced
-//   wrongStageMarkers ← protocol.stages[T].frozen_tokens (characteristic tokens from OTHER stages)
-//   expectAnywhere    ← protocol.stages[S].frozen_tokens (subset)
-//   expectStart/End   ← Console-specific heuristics, not in protocol
-//   Truncation/length ← Console-specific UX guard, not in protocol
-// Run checkPlausibilityProtocolAlignment() in the browser console to detect drift.
+//   expectAnywhere    ← protocol.stages[S].frozen_tokens (auto-generated regexes)
+// Console-specific heuristics (always hardcoded):
+//   wrongStageMarkers ← curated cross-stage detection patterns
+//   expectStart/End   ← truncation and completeness heuristics
 
-// ── Protocol alignment assertion (Option B from C1 analysis) ──
-// Embedded expected values from pipeline_protocol_v1.json v1.3.1.
-// If protocol changes, this assertion will fail and flag the drift.
-
-const PLAUSIBILITY_PROTOCOL_EXPECTATIONS = Object.freeze({
-  stage1: { artifact_produced: "Master Briefing", characteristic_tokens: ["Master Briefing", "Definition of Done"] },
-  stage2: { artifact_produced: "Architecture Spec", characteristic_tokens: ["Architecture Spec", "Progression Status: CLOSED"] },
-  stage3: { artifact_produced: "Master Orchestration File + Work Packages", characteristic_tokens: ["Master Orchestration File", "Work Package File", "Execution Checklist"] },
-  stage4: { artifact_produced: "Delivery Report", characteristic_tokens: ["Delivery Report", "Boundary Verification Status"] },
-  stage5: { artifact_produced: "Review Report", characteristic_tokens: ["FINAL_DISPOSITION:", "Review Report", "REVIEW_BINDING_TOKEN"] },
-  stage6: { artifact_produced: "Integration Report", characteristic_tokens: ["Integration Report", "CLEAN MERGE", "BLOCKED \u2014 REQUIRES REWORK", "Integration Verdict", "REVIEW_BINDING_TOKEN"] }
-});
-
+// checkPlausibilityProtocolAlignment — now uses loadedProtocol directly.
+// If protocol was loaded at runtime, compares live protocol against PLAUSIBILITY_RULES.
+// If not loaded, reports that no protocol file is available.
 function checkPlausibilityProtocolAlignment() {
   const results = [];
-  for (const [stageKey, expect] of Object.entries(PLAUSIBILITY_PROTOCOL_EXPECTATIONS)) {
+  if (!loadedProtocol) {
+    results.push({ stage: "global", check: "protocol_loaded", status: "WARN", detail: "No protocol file loaded — using hardcoded fallback values." });
+    console.group("Plausibility ↔ Protocol alignment: no protocol loaded");
+    console.warn("⚠️ No pipeline_protocol_v1.json loaded. Place it in the prompt folder for runtime validation.");
+    console.groupEnd();
+    return { pass: 0, fail: 0, warn: 1, results };
+  }
+  // Check each stage label matches
+  for (const [stageKey, stageDef] of Object.entries(loadedProtocol.stages)) {
     const rules = PLAUSIBILITY_RULES[stageKey];
     if (!rules) {
       results.push({ stage: stageKey, check: "exists", status: "FAIL", detail: "No PLAUSIBILITY_RULES entry" });
       continue;
     }
-    // Check label matches artifact_produced
-    if (rules.label !== expect.artifact_produced) {
-      results.push({ stage: stageKey, check: "label", status: "FAIL",
-        detail: `label "${rules.label}" ≠ protocol artifact_produced "${expect.artifact_produced}"` });
-    } else {
+    if (rules.label === stageDef.artifact_produced) {
       results.push({ stage: stageKey, check: "label", status: "PASS", detail: rules.label });
-    }
-    // Check characteristic tokens appear somewhere in rules (expectAnywhere, wrongStageMarkers of other stages, or expectEnd)
-    // Custom stringify that preserves regex source text (JSON.stringify serializes RegExp as {})
-    const regexAwareStringify = (obj) => JSON.stringify(obj, (_, v) => v instanceof RegExp ? v.source : v);
-    const allRuleText = regexAwareStringify(rules);
-    for (const token of expect.characteristic_tokens) {
-      // Extract core words (strip punctuation) for fuzzy matching against stringified regexes
-      const coreWords = token.replace(/[^a-zA-Z0-9_]+/g, " ").trim().split(/\s+/).filter(w => w.length > 2);
-      const found = coreWords.every(w => new RegExp(w, "i").test(allRuleText));
-      // Also check if this token appears in OTHER stages' wrongStageMarkers
-      let foundInOther = false;
-      for (const [otherKey, otherRules] of Object.entries(PLAUSIBILITY_RULES)) {
-        if (otherKey === stageKey) continue;
-        const otherText = regexAwareStringify(otherRules.wrongStageMarkers || []);
-        if (coreWords.every(w => new RegExp(w, "i").test(otherText))) {
-          foundInOther = true;
-          break;
-        }
-      }
-      if (found || foundInOther) {
-        results.push({ stage: stageKey, check: `token:${token}`, status: "PASS", detail: found ? "in own rules" : "in other stage wrongStageMarkers" });
-      } else {
-        results.push({ stage: stageKey, check: `token:${token}`, status: "WARN", detail: "Not found in any plausibility rule" });
-      }
+    } else {
+      results.push({ stage: stageKey, check: "label", status: "FAIL",
+        detail: `rules label "${rules.label}" ≠ protocol artifact_produced "${stageDef.artifact_produced}"` });
     }
   }
-  // Check protocol version matches
-  if (typeof PROTOCOL_VERSION !== "undefined") {
-    const expectVersion = "1.3.1";
-    results.push({
-      stage: "global", check: "PROTOCOL_VERSION",
-      status: PROTOCOL_VERSION === expectVersion ? "PASS" : "FAIL",
-      detail: `Console: ${PROTOCOL_VERSION}, assertion expects: ${expectVersion}`
-    });
-  }
+  results.push({ stage: "global", check: "protocol_version", status: "PASS",
+    detail: `Loaded: v${loadedProtocol.version} (${loadedProtocol.calibration_date || "no date"})` });
   // Summary
   const fails = results.filter(r => r.status === "FAIL");
   const warns = results.filter(r => r.status === "WARN");
@@ -726,7 +774,7 @@ function checkPlausibilityProtocolAlignment() {
   return { pass: passes.length, fail: fails.length, warn: warns.length, results };
 }
 
-const PLAUSIBILITY_RULES = {
+let PLAUSIBILITY_RULES = {
   stage1: {
     label: "Master Briefing",
     expectStart: [/master\s*briefing/i, /project\s*summary/i, /^#\s/],

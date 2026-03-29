@@ -22,11 +22,11 @@ const METADATA_FILE = "workspace_metadata.json";
 const IDB_HANDLE_STORE = "workspaceHandles";
 const IDB_HANDLE_KEY = "lastWorkspaceRoot";
 const BACKUP_VERSION = "3.0";
-// Protocol version — must match pipeline_protocol_v1.json.version.
-// Duplication is intentional (Console has no runtime protocol loader yet).
-// C1 assertion in 08_events.js will flag drift if these fall out of sync.
-const PROTOCOL_VERSION = "1.3.1";
-const PROTOCOL_CALIBRATION_DATE = "2026-03-26";
+// Protocol version — updated at runtime if pipeline_protocol_v1.json is loaded from the prompt folder.
+// Falls back to these hardcoded values if the file is not present.
+let PROTOCOL_VERSION = "1.3.1";
+let PROTOCOL_CALIBRATION_DATE = "2026-03-26";
+let loadedProtocol = null;
 const LEGACY_STORAGE_KEY = "operatorConsoleRebuiltStage01to06Guided_v2";
 const SECURITY_LIMITS = Object.freeze({
   maxBackupImportBytes: 5 * 1024 * 1024,
@@ -50,7 +50,9 @@ let writePermissionLost = false;
 let lastWriteError = null;
 
 
-const STAGE_PROMPT_IMPORTS = Object.freeze({
+// Stage definitions — updated at runtime from protocol.json if loaded.
+// Fallback values are used if the protocol file is absent.
+const STAGE_PROMPT_IMPORTS_FALLBACK = Object.freeze({
   stage1: { label: "Stage 01 — Requirements Engineer", number: "01" },
   stage2: { label: "Stage 02 — Technical Architect", number: "02" },
   stage3: { label: "Stage 03 — Project Orchestrator", number: "03" },
@@ -58,8 +60,9 @@ const STAGE_PROMPT_IMPORTS = Object.freeze({
   stage5: { label: "Stage 05 — Code Reviewer", number: "05" },
   stage6: { label: "Stage 06 — Merge Coordinator", number: "06" }
 });
+let STAGE_PROMPT_IMPORTS = { ...STAGE_PROMPT_IMPORTS_FALLBACK };
 
-const STAGE_PROMPT_KEYS = Object.freeze(Object.keys(STAGE_PROMPT_IMPORTS));
+const STAGE_PROMPT_KEYS = Object.freeze(Object.keys(STAGE_PROMPT_IMPORTS_FALLBACK));
 
 
 const LLM_SLOT_OPTIONS = Object.freeze([
