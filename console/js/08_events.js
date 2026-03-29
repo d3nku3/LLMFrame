@@ -1,6 +1,74 @@
 // 08_events.js — Operator actions, imports/exports, dynamic bindings, and event handlers
 // Wires UI events to workflow mutations and persistence calls.
 
+// ── Workspace Lock (BroadcastChannel) ──
+// Prevents two tabs from writing to the same workspace simultaneously.
+// Each tab claims a workspace name. If another tab already holds it, the user is warned.
+
+const workspaceLock = (() => {
+  const TAB_ID = crypto.randomUUID();
+  let channel = null;
+  let claimed = null;
+  let probeResolve = null;
+
+  try { channel = new BroadcastChannel("llmframe-workspace-lock"); } catch (_) {}
+
+  if (channel) {
+    channel.onmessage = (event) => {
+      const msg = event.data;
+      if (!msg || msg.tabId === TAB_ID) return;
+
+      // Another tab is probing for our workspace — respond that we hold it
+      if (msg.type === "PROBE" && msg.workspace === claimed) {
+        channel.postMessage({ type: "ACTIVE", workspace: claimed, tabId: TAB_ID });
+      }
+      // Response to our probe — someone else holds this workspace
+      if (msg.type === "ACTIVE" && probeResolve) {
+        probeResolve(true);
+        probeResolve = null;
+      }
+      // Another tab claimed our workspace (e.g. user forced past warning)
+      if (msg.type === "CLAIM" && msg.workspace === claimed) {
+        setWorkspaceStatus("Another tab opened this workspace. Concurrent edits may cause data loss.", "danger");
+      }
+    };
+
+    window.addEventListener("beforeunload", () => {
+      if (claimed) channel.postMessage({ type: "RELEASE", workspace: claimed, tabId: TAB_ID });
+    });
+  }
+
+  return {
+    // Probe whether another tab holds this workspace. Returns true if conflict detected.
+    async probe(workspaceName) {
+      if (!channel || !workspaceName) return false;
+      return new Promise(resolve => {
+        probeResolve = resolve;
+        channel.postMessage({ type: "PROBE", workspace: workspaceName, tabId: TAB_ID });
+        setTimeout(() => {
+          if (probeResolve) { probeResolve(false); probeResolve = null; }
+        }, 200);
+      });
+    },
+    // Claim a workspace. Call after successful open.
+    claim(workspaceName) {
+      if (claimed && channel) {
+        channel.postMessage({ type: "RELEASE", workspace: claimed, tabId: TAB_ID });
+      }
+      claimed = workspaceName;
+      if (channel) channel.postMessage({ type: "CLAIM", workspace: claimed, tabId: TAB_ID });
+    },
+    // Release current claim. Call on workspace switch or reset.
+    release() {
+      if (claimed && channel) {
+        channel.postMessage({ type: "RELEASE", workspace: claimed, tabId: TAB_ID });
+      }
+      claimed = null;
+    },
+    get currentWorkspace() { return claimed; }
+  };
+})();
+
 // ── Domain Pack Management ──
 
 async function scanDomainPacks() {
@@ -1073,6 +1141,10 @@ function bindDynamicEvents() {
   bindIf("reconnectWorkspaceBtn", async () => {
     const ok = await reconnectWorkspace();
     if (ok) {
+      const wsName = workspaceRootHandle?.name || "";
+      const conflict = await workspaceLock.probe(wsName);
+      if (conflict && !confirm(`"${wsName}" appears to be open in another tab. Opening it here too risks data loss from concurrent writes. Continue anyway?`)) return;
+      workspaceLock.claim(wsName);
       const loaded = await loadPersistedWorkspaceState();
       if (loaded.found && loaded.state) {
         Object.assign(state, createDefaultState(), loaded.state);
@@ -1103,6 +1175,10 @@ function bindDynamicEvents() {
   bindIf("selectWorkspaceFolderBtn", async () => {
     const result = await selectWorkspaceRoot();
     if (result.available) {
+      const wsName = workspaceRootHandle?.name || "";
+      const conflict = await workspaceLock.probe(wsName);
+      if (conflict && !confirm(`"${wsName}" appears to be open in another tab. Opening it here too risks data loss from concurrent writes. Continue anyway?`)) return;
+      workspaceLock.claim(wsName);
       const loaded = await loadPersistedWorkspaceState();
       if (loaded.found && loaded.state) {
         Object.assign(state, createDefaultState(), loaded.state);
@@ -2208,6 +2284,7 @@ function bindEvents() {
 
       Object.assign(state, createDefaultState());
       await clearHandleFromIDB();
+      workspaceLock.release();
       workspaceRootHandle = null;
       workspaceSubHandles = {};
       await saveState("workspace reset", {

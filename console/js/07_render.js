@@ -187,8 +187,13 @@ function renderWorkspaceIndicator() {
     btn.addEventListener("click", async () => {
       if (!confirm("Switch to a different project workspace? The current session state will be saved first.")) return;
       await saveState("pre-switch save").catch(() => {});
+      workspaceLock.release();
       const result = await selectWorkspaceRoot();
       if (result.available) {
+        const wsName = workspaceRootHandle?.name || "";
+        const conflict = await workspaceLock.probe(wsName);
+        if (conflict && !confirm(`"${wsName}" appears to be open in another tab. Opening it here too risks data loss from concurrent writes. Continue anyway?`)) return;
+        workspaceLock.claim(wsName);
         const loaded = await loadPersistedWorkspaceState();
         if (loaded.found && loaded.state) {
           Object.assign(state, createDefaultState(), loaded.state);
