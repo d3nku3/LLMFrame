@@ -2,6 +2,42 @@
 
 Get your first pipeline project running in ~15 minutes.
 
+## Choose your path
+
+Not everyone starts the same way. Find yours, follow the links, skip what doesn't apply.
+
+### "I want to build a software project with this."
+
+You're in the right place. Continue to [Step 1](#step-1-open-the-console) below. The walkthrough uses the Coding domain pack and gets you through a full pipeline cycle. Budget ~1 hour for a meaningful first run with 2–3 packages.
+
+### "I want to try this for a non-coding domain."
+
+Start here, then branch:
+1. Skim [Step 1](#step-1-open-the-console) through [Step 3](#step-3-import-the-prompts) below to understand the Console basics (10 min)
+2. Read the [Domain Pack Guide](docs/DOMAIN_PACK_GUIDE.md) to understand how prompts are compiled for your field
+3. Read [Domain Transfer](docs/DOMAIN_TRANSFER.md) for an honest assessment of what transfers cleanly and what needs testing
+4. Use the [Prompt Compiler](Pipeline_Prompt_Compiler_v2.txt) to generate your domain-specific prompts
+5. Run a 2–3 package pilot. Pay special attention to Stage 05 — that's where domain-specific review criteria matter most
+
+After one hour you should have: a workspace folder with saved artifacts, a manifest tracking your pilot, and a concrete opinion on whether the review stage works for your domain.
+
+### "I'm evaluating this for compliance, governance, or audit."
+
+You don't need to run the pipeline to evaluate it:
+1. Read [Auditability & Traceability](docs/LLMFrame_Auditability_Traceability.md) for the one-page compliance summary (fingerprinting, lineage, review binding, rubber-stamp detection)
+2. Read [Architecture](docs/ARCHITECTURE.md#failure-vocabulary) for the failure vocabulary and enforcement model
+3. Read [Protocol Reference](docs/PROTOCOL_REFERENCE.md) for the complete protocol field documentation
+4. Optionally, run the walkthrough below and inspect the generated `audit_log.ndjson` and `artifact_manifest.json` in your workspace folder
+
+### "I just want to understand what this is before I invest time."
+
+Read these three, in order:
+1. [README](README.md) — what it is, what it sells, who it's for (5 min)
+2. [FAQ](docs/FAQ.md) — common questions, honest answers (5 min)
+3. Come back here when you're ready to try it
+
+---
+
 ## Prerequisites
 
 - A **Chromium-based browser** (Chrome, Edge, Brave, Arc)
@@ -76,6 +112,8 @@ For each work package:
 
 The Console enforces the correct order, binds reviews to specific implementation versions via fingerprints, and tracks everything in the audit log.
 
+You don't have to finish one package before starting the next. After copying a request to an LLM, switch to another package while you wait — use **Open package list** to move between them. Each package keeps its own state independently.
+
 ## Key Rules
 
 - **One new conversation per stage.** Never continue a previous chat — fresh context prevents drift.
@@ -85,13 +123,14 @@ The Console enforces the correct order, binds reviews to specific implementation
 
 ## What's Next
 
-- Read `07_End_User_Operating_Guide_v5.txt` for the full pipeline rules, evidence classes, and go/no-go criteria.
-- Read `08_Operator_Run_Layer_v5.txt` for decision support during execution (when to rework, when to escalate, when to proceed).
-- Read [ARCHITECTURE.md](ARCHITECTURE.md) for the three-layer system design and which rules are enforced vs. guidance.
+- Read the [Console Guide](docs/CONSOLE_GUIDE.md) for all Console features — stage enforcement, review binding, consequence previews, package switching, craft review mode.
+- Read the [Operating Guide](docs/07_End_User_Operating_Guide.md) for the full pipeline rules, evidence classes, and go/no-go criteria.
+- Read the [Operator Run Layer](docs/08_Operator_Run_Layer.md) for decision support during execution (when to rework, when to escalate, when to proceed).
+- Read [ARCHITECTURE.md](docs/ARCHITECTURE.md) for the three-layer system design and which rules are enforced vs. guidance.
 - Explore the **Lineage Graph** in the Console to see your project's dependency map evolve in real time.
-- Run the **Pipeline Prompt Validator** against your prompts to catch structural issues before they surface mid-project. It includes auto-repair for common problems.
-- **Domain packs:** Once you have compiled prompts for a domain, place them in `workspace/prompts/<pack-name>/` and the Console will auto-detect them in the workspace indicator dropdown.
-- **Large projects (10+ packages):** The pipeline supports clustered merge — splitting Stage 06 into iterative merge rounds instead of one monolithic pass. See `DESIGN_Clustered_Merge.md` for the design spec.
+- Run the **Pipeline Prompt Validator** against your prompts to catch structural issues before they surface mid-project.
+- **Domain packs:** Place compiled prompts in `workspace/prompts/<pack-name>/` and the Console will auto-detect them in the workspace indicator dropdown.
+- **Large projects (10+ packages):** The pipeline supports clustered merge — splitting Stage 06 into iterative merge rounds. See `DESIGN_Clustered_Merge.md`.
 
 ## Tips for Your First Project
 
