@@ -2,7 +2,7 @@
 
 **Don't blame it, frame it.**
 
-A rigid, inspectable framework that forces LLMs through contract-bound stages instead of letting them improvise. Works with any model — Claude, ChatGPT, Gemini, local 7B, whatever you have.
+A framework that makes LLM output structured and easily reworkable by forcing every step through contract-bound stages instead of letting models improvise. Works with any model — Claude, ChatGPT, Gemini, local 7B, whatever you have.
 
 MIT License · Zero dependencies · Fully offline · No backend, no accounts, no telemetry · Runs in any Chromium browser
 
@@ -28,7 +28,7 @@ The framework didn't prevent the spec gap. It made the gap **visible at the exac
 
 **What it is:** A 6-stage pipeline where a human operator routes work between LLMs. Each stage has frozen contracts, mandatory review gates, and traceable artifacts. No stage runs automatically.
 
-**What it sells:** Three things — *auditability* (you can reconstruct exactly what happened and why), *constrained repair* (when something breaks, exactly one package gets reworked, not the whole project), and *inspectability* (every decision is a named, versioned, fingerprinted artifact on disk).
+**What it sells:** Three things — *auditability* (you can reconstruct exactly what happened and why), *constrained repair* (when something breaks, exactly one package gets reworked, not the whole project), and *inspectability* (every decision is a named, versioned, fingerprinted artifact on disk). Across multiple parallel projects, the Console externalizes the mental overhead of "where was I?" into persistent workspace state — every stage, artifact, and decision is tracked so your working memory stays free for actual engineering decisions.
 
 **What it isn't:** Not an autonomous agent. Not a code generator. Not a chat wrapper. It's the opposite — a system built on the observation that LLMs produce dramatically better results inside clear boundaries, explicit contracts, and external verification.
 
@@ -96,6 +96,8 @@ The manifest and audit log are machine-readable. Lose the Console — the folder
 
 The framework makes rubber-stamping *harder*, but can't make it impossible. The human is still the weakest and most important link.
 
+**→ See [Auditability & Traceability](docs/LLMFrame_Auditability_Traceability.md) for a detailed overview of fingerprinting, contract lineage, review timing, and compliance relevance.**
+
 ---
 
 ## What's included
@@ -125,7 +127,7 @@ Not just for code — a Technical Report domain pack is included as a working no
 
 **The operator can defeat the system.** Rubber-stamping, ignoring blocked states, copy-pasting without reading — the tooling adds friction, but can't stop a determined human.
 
-**Model quality still matters.** Structure makes bad models fail *visibly*, not *competently*.
+**Model quality still matters.** But structure lets smaller models punch above their weight class — a local 7B inside rigid contracts produces more reliable output than a frontier model freestyling without guardrails.
 
 **No cross-project learning.** Each run is isolated. The framework doesn't aggregate patterns or suggest improvements from past failures.
 
