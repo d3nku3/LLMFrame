@@ -117,6 +117,8 @@ Not just for code — a Technical Report domain pack is included as a working no
 
 **→ See [ARCHITECTURE.md](ARCHITECTURE.md) for the three-layer system design (Prompt Layer, Protocol Layer, Operator Layer) and the full [failure vocabulary](ARCHITECTURE.md#failure-vocabulary).**
 
+**→ More docs: [Console Guide](docs/CONSOLE_GUIDE.md) · [Domain Pack Guide](docs/DOMAIN_PACK_GUIDE.md) · [Protocol Reference](docs/PROTOCOL_REFERENCE.md) · [FAQ & Comparisons](docs/FAQ.md) · [Auditability & Traceability](docs/LLMFrame_Auditability_Traceability.md)**
+
 ---
 
 ## Where this still fails
@@ -145,6 +147,8 @@ Not just for code — a Technical Report domain pack is included as a working no
 
 Solo developers doing long sessions where one wrong assumption cascades into hours of rework. Users of smaller local models that benefit from rigid structure. Air-gapped or privacy-sensitive environments. Teams that want inspectable handoffs instead of autonomous agent chaos. Non-programmers who orchestrate LLM work and need discipline without writing code.
 
+**→ Coming from Cursor, Copilot, or CrewAI? See [FAQ & Comparisons](docs/FAQ.md) for how LLMFrame differs.**
+
 ---
 
 ## What the Console actually does
@@ -156,6 +160,8 @@ The Console isn't a clipboard manager — it's the operational backbone. It hand
 | ![Analytics](docs/screenshot_analytics.png) |
 
 **Why zero dependencies:** No npm, no build step, no server. No hidden fetch calls — your data stays on your machine. Nothing to audit except files you can read. Fully offline, air-gap tested. Copy the folder — that's deployment.
+
+**→ See [Console Guide](docs/CONSOLE_GUIDE.md) for setup, workflow, and feature reference.**
 
 ---
 
