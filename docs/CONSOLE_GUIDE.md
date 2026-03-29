@@ -41,7 +41,11 @@ The Console shows exactly one current action at a time:
 2. **Copy request** — Copy the assembled prompt to clipboard (or download as `.txt`) and paste it into an LLM chat of your choice.
 3. **Save result** — When the LLM returns, paste the response back into the Console. It saves the artifact to disk, updates the manifest, and advances the workflow.
 
-For Stages 04–05, you work one package at a time. Use **Switch package** to move between packages, or send multiple packages to different LLMs in parallel.
+For Stages 04–05, the Console focuses on one package at a time — one package, one action, one screen. This is deliberate: it prevents context-switching across five packages simultaneously, which is how work quality degrades.
+
+But this does not mean strictly sequential processing. You can switch between packages at any point: start an implementation for Package A, copy the request to an LLM, then switch to Package B while waiting for the response. When Package A's result comes back, switch back and save it. Each package keeps its own state — implementation text, review output, fingerprint, disposition — independently. Nothing is lost when you switch away.
+
+The workflow: **Build → Copy → Switch → Work on something else → Switch back → Save.** The Console tracks where each package stands. Use **Open package list** or **Choose the next package** to move between them.
 
 ## What the Console Tracks
 

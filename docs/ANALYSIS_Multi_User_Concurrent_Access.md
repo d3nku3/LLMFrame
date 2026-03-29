@@ -205,16 +205,16 @@ A lightweight server (Node.js, Python, or even a static file server with a REST 
 
 ### What Multi-User Actually Means
 
-| Level | Capability | Effort | Breaks Architecture |
-|-------|-----------|--------|-------------------|
-| 0 (current) | Single operator | — | — |
-| 1 | File locking (prevent corruption) | 2 days | No |
-| 2 | Per-package state | 2 weeks | Yes (state machine) |
-| 3 | Fingerprint branching | 4-6 weeks | Yes (manifest + all prompts) |
-| 4 | Merge conflict resolution | 6-10 weeks | Yes (Merge Coordinator) |
-| 5 | Real-time collaboration | Months | Yes (everything) |
+| Level | Capability | Effort | Breaks Architecture | Status |
+|-------|-----------|--------|-------------------|--------|
+| 0 | Single operator | — | — | Current default |
+| 1 | Tab-level lock (prevent corruption) | Done | No | **Shipped v1.4.0** |
+| 2 | Per-package state | N/A | Already exists | **Reassessed — discoverability gap, not missing capability** |
+| 3 | Fingerprint branching | 4-6 weeks | Yes (manifest + all prompts) | Not doing |
+| 4 | Merge conflict resolution | 6-10 weeks | Yes (Merge Coordinator) | Not doing |
+| 5 | Real-time collaboration | Months | Yes (everything) | Not doing |
 
-Each level requires all previous levels. You can't do Level 3 without Level 2. You can't do Level 2 without Level 1.
+Each level above 2 requires all previous levels. Levels 3-5 are architectural rewrites that destroy LLMFrame's core value proposition.
 
 ### The Real Question
 
@@ -238,19 +238,23 @@ The scenarios where multiple operators work the same LLMFrame project simultaneo
 
 ## 6. Recommendation
 
-### Do Now: Level 1 (File Locking)
+### Done: Level 1 (Tab-Level Lock)
 
-Add advisory file locks to the manifest, audit log, and stage directories. Two days of work. Prevents data corruption from accidental concurrent access (e.g., two browser tabs, cloud sync race conditions). No architectural changes.
+*Implemented in v1.4.0.* The Console uses a BroadcastChannel-based lock to detect when the same workspace is opened in multiple tabs. On conflict, the operator sees a warning explaining the risk of concurrent writes. The lock is advisory — the operator can proceed — but the warning is explicit. The lock is released automatically on tab close, workspace switch, or workspace reset.
+
+This covers the most common accident (opening the same project in two tabs). It does not cover cross-browser or cross-machine scenarios (e.g., cloud sync collisions). File-system-level locking can be added later if those scenarios turn out to cause real data loss in practice.
 
 ### Do Never: Levels 3-5
 
 Fingerprint branching, conflict resolution, and real-time collaboration are architectural rewrites that destroy LLMFrame's core value proposition. If a team needs these capabilities, they should use Git + CI/CD alongside LLMFrame, not instead of it.
 
-### Do Maybe, Later: Level 2 (Per-Package State)
+### Not Needed: Level 2 (Per-Package State)
 
-Per-package state tracking has standalone value even for single-operator use. Currently, the operator finishes one package through stages 04-05 before starting the next. Per-package state would allow starting Package 3's implementation while Package 1 is in review — a natural efficiency gain even without a second operator.
+*Reassessed in v1.4.0.* The original analysis assumed that the Console forces strict sequential package processing. This was incorrect — the Console already tracks per-package state independently. Every package carries its own implementation status, review output, disposition, fingerprint, and binding. The operator can switch between packages at any point via the package chooser without losing progress on any of them.
 
-If implemented, it should be framed as "parallel package processing" (a single-operator productivity feature), not "multi-user collaboration" (a product pivot). The fact that it incidentally enables a second operator to work on a different package is a side effect, not the design goal.
+What the analysis described as "Level 2" — a kanban view with explicit per-package stage assignments — is a UI feature, not an architecture feature. It would replace the narrow working surface (one package, one action, one screen) with a dashboard. This contradicts a deliberate design constraint documented in ARCHITECTURE.md: the single-package focus prevents the operator from context-switching across multiple packages simultaneously, which is how work quality degrades.
+
+The real gap was discoverability, not capability. The Console Guide and Operating Guide have been updated to explicitly describe the package-switching workflow. The concurrency angle — two operators on different packages — remains a locking problem addressed by Level 1.
 
 ### The Git Parallel
 
@@ -272,12 +276,12 @@ Trying to replicate Git's collaboration model inside LLMFrame is solving a solve
 
 ## 7. Summary
 
-Multi-user concurrent access is not a feature — it's an architectural transformation. The minimum viable version (file locking) is trivial and worth doing. Everything beyond that trades LLMFrame's core strength (simplicity, zero infrastructure, single-file deployment) for capabilities that Git already provides better.
+Multi-user concurrent access is not a feature — it's an architectural transformation. The minimum viable version (tab-level locking via BroadcastChannel) shipped in v1.4.0 and prevents the most common data loss scenario. Per-package state turned out to already exist — the gap was documentation, not architecture. Everything beyond Level 1 trades LLMFrame's core strength (simplicity, zero infrastructure, single-file deployment) for capabilities that Git already provides better.
 
-The pipeline's natural serialization (stages run in order, packages are independent work units) already enables a pragmatic form of team collaboration: one architect, multiple implementers working on separate packages, one integrator at merge. This workflow doesn't require any Console changes — it requires a section in the Operating Guide.
+The pipeline's natural serialization (stages run in order, packages are independent work units) already enables a pragmatic form of team collaboration: one architect, multiple implementers working on separate packages, one integrator at merge. The Console Guide and Operating Guide now document the package-switching workflow explicitly.
 
 **LLMFrame manages the conversation between humans and LLMs. Git manages the conversation between humans and humans. Combining both into one tool serves neither purpose well.**
 
 ---
 
-*This analysis is intended for the LLMFrame repository as architectural decision documentation.*
+*This analysis is intended for the LLMFrame repository as architectural decision documentation. Last updated: 2026-03-29 (Level 1 shipped, Level 2 reassessed).*

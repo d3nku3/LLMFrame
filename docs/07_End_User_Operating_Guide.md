@@ -133,6 +133,8 @@ Requirements Engineer
 → Merge Coordinator
 ```
 
+This diagram shows the logical order, not a strict sequence. You don't have to finish Package 1's review before starting Package 2's implementation. The Console tracks each package independently — you can start an implementation, copy the request to an LLM, switch to another package while waiting, then switch back to save the result. Use the package chooser to move between them. What matters is that each individual package completes implementation → review before entering merge.
+
 If a review fails, you do not continue to merge. You repair first.
 
 ---
@@ -273,9 +275,9 @@ Do not go straight to merge when review has failed. Do not ask the merger to "ju
 
 ---
 
-## 7. How to run one package at a time
+## 7. How to run packages through the pipeline
 
-This is the recommended way to use the system.
+This is the recommended workflow.
 
 1. Run the Requirements Engineer. The Console persists the Master Briefing.
 2. Run the Technical Architect. The Console persists the Architecture Spec.
@@ -286,7 +288,7 @@ This is the recommended way to use the system.
 7. If the review passes, move to the next package.
 8. After all required packages are reviewed successfully, run the Merge Coordinator.
 
-This is better than doing everything at once: easier to catch mistakes, easier to repair, easier to compare versions, and much lower risk of total project drift.
+You don't have to wait for each package to complete before starting the next. After copying a request to an LLM, you can switch to another package and work on it while waiting. The Console tracks each package's state independently. The constraint is per-package: implementation before review, review before merge. The order between packages is flexible.
 
 ---
 
@@ -390,7 +392,7 @@ Do NOT send artifacts to Merge if: required reviews are missing for interface-se
 
 ## 14. Best practices
 
-- Work one package at a time. To work on multiple packages in parallel, use the Switch Package button.
+- Focus on one package at a time, but don't wait idle — use the package chooser to switch between packages while LLM responses are in flight.
 - Do not skip review. Do not ask merge to rescue bad packages.
 - Do not let implementers invent architecture. Do not let reviewers redesign architecture.
 - Keep 07 and 08 both available during real execution.
