@@ -177,7 +177,7 @@ The Console isn't a clipboard manager — it's the operational backbone. It hand
 
 ## Status and roadmap
 
-All components are **stable and in daily use**. This is a personal toolkit shared publicly — community contributions welcome (see CONTRIBUTING.md), response times may vary.
+All components are **stable and in daily use**. This is a personal toolkit shared publicly — community contributions welcome (see [CONTRIBUTING.md](docs/CONTRIBUTING.md)), response times may vary.
 
 **Next:** Normalized uncertainty reporting (per-stage assumptions and unknowns), community-contributed domain packs, rework-counter metrics in the Analytics Dashboard.
 
