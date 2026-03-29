@@ -24,6 +24,14 @@ Whether LLMs follow the compiled prompts as strictly in unfamiliar domains. In t
 
 Our honest estimate without testing: structured professional domains (law, engineering, research, technical writing) — 70–80% transfer. Creative domains (novels, screenplays, game design) — closer to 50%, because the "contracts" are inherently softer and harder to verify mechanically.
 
+## Even when Review doesn't fit, the Console still works
+
+The 50% estimate for creative domains doesn't mean the pipeline is useless there — it means the binary ACCEPT/REWORK gate doesn't map cleanly onto subjective quality judgments like tone, voice, or pacing. But the Console's tracking mechanics — versioning, fingerprinting, artifact lineage, draft/reviewed/superseded status — work regardless of what the artifacts contain. For a novelist managing 48 scenes across multiple revision passes, that alone is valuable.
+
+More importantly, creative work has reviewable structure even when it doesn't have reviewable style. Worldbuilding is full of hard contracts: characters introduced in chapter 3 must exist in chapters that reference them, magic systems must obey their own established rules, timeline events must not contradict each other, place names must be consistent. These are binary checks — the character either exists or doesn't, the timeline either works or it doesn't. A Stage 05 reviewer focused on continuity, internal logic, and factual consistency within the fiction can catch real errors, even if it can't tell you whether a paragraph *sounds right*.
+
+The practical split might be: use the full pipeline for the structural scaffold (worldbuilding bible, chapter decomposition, continuity contracts), and use the Console as a pure tracker for the subjective craft passes (voice, pacing, emotional arc). Not every stage needs to enforce contracts to be useful.
+
 ## What we're looking for
 
 We want people to break this. Specifically:
@@ -37,7 +45,7 @@ We want people to break this. Specifically:
 - Where did the pipeline add genuine value, and where did it just add overhead?
 - What would you change about the stage structure for your domain?
 
-**If you work in a "soft" domain** — creative writing, game design, UX research, narrative design — we're especially curious. The pipeline assumes deliverables have verifiable contracts and binary pass/fail boundaries. Your work often doesn't. Does the structure help anyway by imposing discipline? Or does it fight the nature of your work? Both answers are useful.
+**If you work in a "soft" domain** — creative writing, game design, UX research, narrative design — we're especially curious. As described above, there may be more reviewable structure in your work than you'd expect. Does separating structural review (continuity, internal logic) from craft review (voice, pacing) work in practice? Does the Console add value as a pure tracker even when you skip the review gate? Both answers are useful.
 
 **How to contribute feedback:**
 - Open an issue on the repo with the tag `domain-transfer`
