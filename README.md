@@ -115,7 +115,7 @@ The framework makes rubber-stamping *harder*, but can't make it impossible. The 
 
 Not just for code — a Technical Report domain pack is included as a working non-coding reference.
 
-**→ See [ARCHITECTURE.md](ARCHITECTURE.md) for the three-layer system design (Prompt Layer, Protocol Layer, Operator Layer) and the full [failure vocabulary](ARCHITECTURE.md#failure-vocabulary).**
+**→ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for the three-layer system design (Prompt Layer, Protocol Layer, Operator Layer) and the full [failure vocabulary](docs/ARCHITECTURE.md#failure-vocabulary).**
 
 **→ More docs: [Console Guide](docs/CONSOLE_GUIDE.md) · [Domain Pack Guide](docs/DOMAIN_PACK_GUIDE.md) · [Protocol Reference](docs/PROTOCOL_REFERENCE.md) · [FAQ & Comparisons](docs/FAQ.md) · [Auditability & Traceability](docs/LLMFrame_Auditability_Traceability.md)**
 
