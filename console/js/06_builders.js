@@ -113,6 +113,57 @@ function buildStage5Request(pkg) {
   ]);
 }
 
+function buildCraftReviewRequest(pkg) {
+  // Non-gating annotative review: no binding block, no FINAL_DISPOSITION expected.
+  // Uses a separate craft review prompt if available, otherwise falls back to stage5 prompt
+  // with an operator note explaining the craft-only scope.
+  const craftPromptText = getCraftReviewPromptText();
+  const hasCraftPrompt = Boolean(craftPromptText);
+  const structuralReviewSummary = pkg.reviewOutputText.trim()
+    ? `This package already passed structural review (${pkg.reviewDisposition || "unknown disposition"}). The craft review is an additional annotative pass — it does not affect merge eligibility.`
+    : "No structural review has been saved for this package yet.";
+
+  if (hasCraftPrompt) {
+    // Use dedicated craft review prompt (loaded from 05b_ prefixed file)
+    return [
+      "Use this in a fresh chat. This is an annotative craft review — no ACCEPT/REWORK gate.",
+      "",
+      craftPromptText,
+      "",
+      requestSection("OPERATOR NOTE — CRAFT REVIEW", structuralReviewSummary),
+      "",
+      requestSection("CURRENT IMPLEMENTATION OUTPUT", safeText(pkg.implementationOutputText).trim()),
+      "",
+      requestSection("CURRENT WORK PACKAGE CONTRACT", safeText(pkg.packageText).trim()),
+      "",
+      requestSection("CURRENT ARCHITECTURE SPEC", safeText(state.stage2.artifactText).trim())
+    ].join("\n");
+  }
+  // Fallback: use standard stage5 prompt with craft-mode operator note
+  return buildRequestPacket("Use this in a fresh chat. This is an annotative craft review — no ACCEPT/REWORK gate.", "stage5", [
+    ["OPERATOR NOTE — CRAFT REVIEW MODE", [
+      structuralReviewSummary,
+      "",
+      "IMPORTANT: This is a CRAFT review pass. Focus on tone, pacing, voice, style, and subjective quality.",
+      "Do NOT produce a FINAL_DISPOSITION block. Do NOT produce a REVIEW_BINDING_TOKEN.",
+      "Instead, produce annotative observations organized by aspect (tone, pacing, voice, continuity, style).",
+      "This feedback is for the operator's reference — it does not gate merge eligibility."
+    ].join("\n")],
+    ["CURRENT ARCHITECTURE SPEC", safeText(state.stage2.artifactText).trim()],
+    ["CURRENT WORK PACKAGE CONTRACT", safeText(pkg.packageText).trim()],
+    ["CURRENT IMPLEMENTATION OUTPUT", safeText(pkg.implementationOutputText).trim()]
+  ]);
+}
+
+function getCraftReviewPromptText() {
+  // Look for a craft review prompt: file starting with "05b_" or "05b-" in reference files
+  const match = (state.referenceFiles || []).find(f => {
+    const name = safeText(f?.name || "").trim().toLowerCase();
+    return /^05b[_\s\-]/.test(name) && /\.txt$/i.test(name) && safeText(f.text).trim();
+  });
+  return match ? safeText(match.text).trim() : "";
+}
+
 function buildStage6Request(mergePackages) {
   const excluded = getPackagesInOrder().filter(pkg => !isPackageMergeReady(pkg));
   return buildRequestPacket("Use this in a fresh chat with one of your stronger available LLMs.", "stage6", [

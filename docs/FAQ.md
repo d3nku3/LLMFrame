@@ -34,6 +34,10 @@ Zero dependencies. The Console is a single HTML file with JS modules that runs i
 
 Yes. The included domain-agnostic templates have `[DOMAIN:]` markers that the Prompt Compiler replaces with domain-specific terminology. A Technical Report domain pack ships as a working reference. The pipeline structure — requirements → architecture → decomposition → execution → review → integration — applies to any complex deliverable: legal documents, research papers, engineering specifications, book manuscripts.
 
+## "Does the review stage work for creative writing?"
+
+Partially — and the pipeline is designed for that. As of v1.4.0, domain packs can set `review_mode: "structural+craft"` in the protocol. This splits review into two passes: a structural review (continuity, timeline logic, character inventory, internal consistency) that uses the standard ACCEPT/REWORK gate, and an optional craft review (tone, pacing, voice, style) that produces annotative feedback without blocking merge. The structural pass catches real errors — a character referenced in chapter 7 who was never introduced, a timeline contradiction, a naming inconsistency. The craft pass gives subjective feedback that the operator can act on or ignore. See [Domain Transfer](docs/DOMAIN_TRANSFER.md) for the full picture.
+
 ## "Can a team use this?"
 
 One operator at a time, yes. Multiple operators on the *same* project simultaneously, no — that would require turning the manifest into a DAG with branching fingerprint chains, which destroys the simplicity. For team workflows: one person operates the pipeline, others contribute via Git as they would normally. LLMFrame manages the human-to-LLM conversation. Git manages the human-to-human conversation. See [the full analysis](docs/ANALYSIS_Multi_User_Concurrent_Access.md).

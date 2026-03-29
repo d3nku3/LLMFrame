@@ -717,7 +717,13 @@ function applyLoadedProtocol(protocol) {
     }
   }
 
-  // 4. Update protocol version display if render is available
+  // 4. Read review_mode (default: "gated")
+  if (protocol.review_mode) {
+    reviewMode = protocol.review_mode;
+    console.log(`Review mode set to "${reviewMode}" from protocol.`);
+  }
+
+  // 5. Update protocol version display if render is available
   if (typeof render === "function") {
     try { render(); } catch (_) {}
   }
@@ -1363,6 +1369,51 @@ function bindDynamicEvents() {
     } else {
       setActionSummary(`Review saved for ${label}.${hadReview ? " Previous review replaced." : ""}`);
     }
+    finalizeRender();
+  });
+
+  // ── Craft Review handlers (non-gating, only active when reviewMode === "structural+craft") ──
+
+  bindIf("prepareCraftReviewBtn", () => {
+    if (reviewMode !== "structural+craft") return;
+    const pkg = getRequiredPackage();
+    if (!pkg) return;
+    if (!hasUsableStagePrompt("stage5")) return alert("Load a craft review prompt (05b_ prefix) to use craft review.");
+    pkg.craftReviewRequestText = buildCraftReviewRequest(pkg);
+    pkg.craftReviewRequestPrepared = true;
+    pkg.craftReviewRequestCopied = false;
+    finalizeRender();
+  });
+  bindIf("copyCraftReviewBtn", () => {
+    const pkg = getRequiredPackage();
+    if (pkg && pkg.craftReviewRequestText) copyPacket(pkg.craftReviewRequestText, () => { pkg.craftReviewRequestCopied = true; });
+  });
+  bindIf("SaveCraftReviewResultBtn", () => {
+    const pkg = getRequiredPackage();
+    const value = readRequiredInput("craftReviewReturnInput", "Paste the craft review feedback first.");
+    if (!pkg || !value) return;
+    pkg.craftReviewOutputText = value;
+    pkg.craftReviewSavedAt = nowStamp();
+    const label = pkg.packageId || pkg.filename;
+    setActionSummary(`Craft review saved for ${label}. This is annotative feedback — it does not affect merge eligibility.`);
+    saveState("craft review saved", {
+      audit: true,
+      auditEvent: { type: "CRAFT_REVIEW_SAVED", packageKey: pkg.key, packageId: pkg.packageId }
+    }).catch(err => console.error("Persistence failed", err));
+    finalizeRender();
+  });
+  bindIf("SaveCraftNotesBtn", () => {
+    const pkg = getRequiredPackage();
+    const value = readRequiredInput("craftNotesInput", "Enter your craft notes first.");
+    if (!pkg || !value) return;
+    pkg.craftNotesText = value;
+    pkg.craftNotesSavedAt = nowStamp();
+    const label = pkg.packageId || pkg.filename;
+    setActionSummary(`Craft notes saved for ${label}.`);
+    saveState("craft notes saved", {
+      audit: true,
+      auditEvent: { type: "CRAFT_NOTES_SAVED", packageKey: pkg.key, packageId: pkg.packageId }
+    }).catch(err => console.error("Persistence failed", err));
     finalizeRender();
   });
 

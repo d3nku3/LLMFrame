@@ -209,6 +209,8 @@ If any answer is NO, stop first.
 
 **Never do:** Do not review from validator output alone. Do not treat PASS WITH NOTES as safe if merge-blocking issues remain.
 
+**Craft review (structural+craft mode only):** After ACCEPT, the Console offers an optional non-gating craft review pass for subjective feedback (tone, pacing, voice, style). This produces an annotative artifact that does not affect merge eligibility. Use it or skip it — merge proceeds either way.
+
 ---
 
 ### Stage 06 — Merge Coordinator

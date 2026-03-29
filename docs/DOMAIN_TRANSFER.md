@@ -30,7 +30,7 @@ The 50% estimate for creative domains doesn't mean the pipeline is useless there
 
 More importantly, creative work has reviewable structure even when it doesn't have reviewable style. Worldbuilding is full of hard contracts: characters introduced in chapter 3 must exist in chapters that reference them, magic systems must obey their own established rules, timeline events must not contradict each other, place names must be consistent. These are binary checks — the character either exists or doesn't, the timeline either works or it doesn't. A Stage 05 reviewer focused on continuity, internal logic, and factual consistency within the fiction can catch real errors, even if it can't tell you whether a paragraph *sounds right*.
 
-The practical split might be: use the full pipeline for the structural scaffold (worldbuilding bible, chapter decomposition, continuity contracts), and use the Console as a pure tracker for the subjective craft passes (voice, pacing, emotional arc). Not every stage needs to enforce contracts to be useful.
+This is exactly how `review_mode: "structural+craft"` works in v1.4.0: the full pipeline handles the structural scaffold (worldbuilding bible, chapter decomposition, continuity contracts) with a binary ACCEPT/REWORK gate, and the Console offers an optional non-gating craft review pass and manual craft notes field for the subjective dimensions (voice, pacing, emotional arc). Not every stage needs to enforce contracts to be useful.
 
 ## What we're looking for
 
@@ -45,7 +45,7 @@ We want people to break this. Specifically:
 - Where did the pipeline add genuine value, and where did it just add overhead?
 - What would you change about the stage structure for your domain?
 
-**If you work in a "soft" domain** — creative writing, game design, UX research, narrative design — we're especially curious. As described above, there may be more reviewable structure in your work than you'd expect. Does separating structural review (continuity, internal logic) from craft review (voice, pacing) work in practice? Does the Console add value as a pure tracker even when you skip the review gate? Both answers are useful.
+**If you work in a "soft" domain** — creative writing, game design, UX research, narrative design — we're especially curious. As of v1.4.0, the Console supports `review_mode: "structural+craft"` which separates structural review (continuity, internal logic — with gate) from craft review (voice, pacing — annotative, non-gating). Does this split work in practice? Does the craft review prompt produce useful feedback? Does the Console add value as a tracker even for purely subjective passes? All answers are useful.
 
 **How to contribute feedback:**
 - Open an issue on the repo with the tag `domain-transfer`

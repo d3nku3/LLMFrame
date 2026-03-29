@@ -1126,6 +1126,56 @@ function renderPackageAcceptedCard(pkg) {
   const mergeReady = mergeReadyPackages();
   const mergePromptReady = hasUsableStagePrompt("stage6");
   const primaryLabel = others.length ? "Choose the next package" : "Create merge request";
+  const isCraftMode = reviewMode === "structural+craft";
+
+  // Craft review section (only in structural+craft mode)
+  let craftSection = "";
+  if (isCraftMode) {
+    const hasCraftOutput = Boolean(pkg.craftReviewOutputText?.trim());
+    const hasCraftNotes = Boolean(pkg.craftNotesText?.trim());
+    const craftPromptAvailable = Boolean(getCraftReviewPromptText()) || hasUsableStagePrompt("stage5");
+
+    craftSection = `
+      <div class="section-block" style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px;">
+        <h3>Craft review (optional, non-gating)</h3>
+        <p class="small">This package passed structural review. You can optionally run a craft review for subjective feedback on tone, pacing, voice, and style. Craft review does not affect merge eligibility.</p>
+        ${hasCraftOutput ? `
+          <div class="notice success">Craft review saved (${escapeHtml(pkg.craftReviewSavedAt || "")}).</div>
+          <details class="artifact-preview"><summary class="mini">Craft review feedback</summary><pre>${escapeHtml(previewText(pkg.craftReviewOutputText))}</pre></details>
+        ` : `
+          ${pkg.craftReviewRequestPrepared && !pkg.craftReviewRequestCopied ? `
+            <div class="notice">Craft review request built. Copy it to an LLM chat.</div>
+            <button class="ghost-btn" id="copyCraftReviewBtn" type="button">Copy craft review request</button>
+            <button class="ghost-btn" id="downloadCraftReviewBtn" type="button">Download as .txt</button>
+          ` : pkg.craftReviewRequestCopied ? `
+            <div class="notice">Craft review request copied. Save the returned feedback below.</div>
+            <div class="field">
+              <label for="craftReviewReturnInput">Returned craft review feedback</label>
+              <textarea id="craftReviewReturnInput" rows="8" placeholder="Paste the craft review feedback here..."></textarea>
+            </div>
+            <button class="primary-btn" id="SaveCraftReviewResultBtn" type="button">Save craft review</button>
+          ` : `
+            <button class="ghost-btn" id="prepareCraftReviewBtn" type="button" ${craftPromptAvailable ? "" : "disabled"}>Build craft review request</button>
+            ${!craftPromptAvailable ? `<div class="small" style="margin-top:4px;">Load a craft review prompt (05b_ prefix) or a standard Stage 05 prompt to enable this.</div>` : ""}
+          `}
+        `}
+      </div>
+      <div class="section-block" style="border-top:1px solid var(--border);padding-top:16px;margin-top:8px;">
+        <h3>Craft notes (manual, non-gating)</h3>
+        <p class="small">Record your own subjective observations about this package — voice, feel, pacing, anything the structural review doesn't cover.</p>
+        ${hasCraftNotes ? `
+          <div class="notice">Notes saved (${escapeHtml(pkg.craftNotesSavedAt || "")}).</div>
+          <details class="artifact-preview"><summary class="mini">Saved craft notes</summary><pre>${escapeHtml(previewText(pkg.craftNotesText))}</pre></details>
+        ` : ""}
+        <div class="field">
+          <label for="craftNotesInput">Craft notes</label>
+          <textarea id="craftNotesInput" rows="4" placeholder="Your observations on tone, pacing, voice, style...">${escapeHtml(pkg.craftNotesText || "")}</textarea>
+        </div>
+        <button class="ghost-btn" id="SaveCraftNotesBtn" type="button">Save craft notes</button>
+      </div>
+    `;
+  }
+
   return `
     <div class="section-label">Current action</div>
     <h2 class="current-title">This package is eligible for Stage 06</h2>
@@ -1149,6 +1199,7 @@ function renderPackageAcceptedCard(pkg) {
       </div>
       <div class="notice ${mergePromptReady ? "success" : "danger"}" style="margin-top:12px;">${escapeHtml(stagePromptSourceLabel("stage6"))}</div>
     </div>
+    ${craftSection}
     <div class="section-block">
       <h3>What happens next</h3>
       <p class="small">${others.length

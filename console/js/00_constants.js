@@ -24,9 +24,12 @@ const IDB_HANDLE_KEY = "lastWorkspaceRoot";
 const BACKUP_VERSION = "3.0";
 // Protocol version — updated at runtime if pipeline_protocol_v1.json is loaded from the prompt folder.
 // Falls back to these hardcoded values if the file is not present.
-let PROTOCOL_VERSION = "1.3.1";
-let PROTOCOL_CALIBRATION_DATE = "2026-03-26";
+let PROTOCOL_VERSION = "1.4.0";
+let PROTOCOL_CALIBRATION_DATE = "2026-03-29";
 let loadedProtocol = null;
+// Review mode: "gated" (default, binary ACCEPT/REWORK) or "structural+craft" (adds optional non-gating craft review).
+// Set by protocol.json at runtime. Domain packs for softer fields use "structural+craft".
+let reviewMode = "gated";
 const LEGACY_STORAGE_KEY = "operatorConsoleRebuiltStage01to06Guided_v2";
 const SECURITY_LIMITS = Object.freeze({
   maxBackupImportBytes: 5 * 1024 * 1024,

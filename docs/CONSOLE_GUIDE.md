@@ -86,7 +86,10 @@ Assign a color theme per project to visually distinguish workspaces when working
 The Console auto-detects the domain pack (Coding, Technical Report, or custom) from the loaded prompts. Switch packs by loading a different prompt folder — the Console adapts its terminology and validation rules.
 
 ### Protocol Drift Detection
-The Console compares the loaded prompts and Protocol version against its internal expectations. If the prompts reference tokens or sections not defined in the protocol, a warning is shown.
+The Console loads `pipeline_protocol_v1.json` at runtime from the prompt folder or workspace root. It derives stage labels, plausibility rules, and review mode from the protocol. If the protocol file is absent, the Console falls back to hardcoded defaults. A version label in the workspace footer shows which protocol version is active.
+
+### Craft Review (structural+craft mode)
+When the protocol sets `review_mode` to `"structural+craft"`, the Console shows two additional sections on the package-accepted screen: an optional LLM-based craft review pass and a manual craft notes text field. Both are non-gating — they produce audit-logged artifacts but never block merge eligibility. The structural review (ACCEPT/REWORK) remains the only gate. This mode is intended for domains where quality has subjective dimensions (tone, voice, pacing, style) that resist binary pass/fail checks. The Prompt Compiler sets this field automatically when it detects a soft domain.
 
 ## Workspace Folder Structure
 

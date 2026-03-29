@@ -4,7 +4,7 @@ LLMFrame ships with two domain packs — **Coding** (the reference implementatio
 
 ## What a domain pack is
 
-A domain pack is a set of 6 prompt files — one per pipeline stage — that speak the LLMFrame protocol while using terminology specific to your field. The Console doesn't care whether your deliverables are source code, legal briefs, or engineering calculations. It cares that the prompts produce artifacts with typed IDs, status fields, and contract references in the expected format.
+A domain pack is a set of 6 prompt files — one per pipeline stage — that speak the LLMFrame protocol while using terminology specific to your field. For domains with subjective quality dimensions (creative writing, game narrative, editorial), the pack may include a 7th file: a `05b_Craft_Reviewer` prompt for non-gating annotative feedback on tone, pacing, voice, and style. The Console doesn't care whether your deliverables are source code, legal briefs, or engineering calculations. It cares that the prompts produce artifacts with typed IDs, status fields, and contract references in the expected format.
 
 The key insight: **the prompts are interchangeable, the protocol is not.** Every domain pack must speak the same protocol — frozen tokens, contract ID prefixes, artifact names, section headers — so the Console can track, fingerprint, and enforce transitions regardless of domain.
 
@@ -19,9 +19,10 @@ The fastest path. The domain-agnostic templates contain `[DOMAIN:]` markers wher
 1. Open the Prompt Compiler (`Pipeline_Prompt_Compiler_v2.txt`) in an LLM chat.
 2. Paste all 6 agnostic template files.
 3. Describe your target domain. Be specific — not just "engineering" but "structural steel connection design for commercial buildings per Eurocode 3."
-4. The Compiler replaces every `[DOMAIN:]` marker with domain-appropriate content and returns 6 complete prompt files.
-5. Run the Prompt Validator on the compiled output to verify structural completeness.
-6. Save the 6 files with the standard naming convention (`01_` through `06_` prefixes) into a prompt folder.
+4. The Compiler replaces every `[DOMAIN:]` marker with domain-appropriate content and returns 6 complete prompt files (or 7 if the domain has subjective quality aspects — see below).
+5. If the Compiler detects a soft domain, it sets `review_mode: "structural+craft"` in the protocol and produces a `05b_Craft_Reviewer.txt`. Place this file in your prompt folder alongside the standard 6. Set `"review_mode": "structural+craft"` in your `pipeline_protocol_v1.json`.
+6. Run the Prompt Validator on the compiled output to verify structural completeness.
+7. Save the prompt files with the standard naming convention (`01_` through `06_` prefixes, plus `05b_` if applicable) into a prompt folder.
 
 **What `[DOMAIN:]` markers look like:**
 
@@ -76,7 +77,8 @@ Before using a new domain pack on a real project:
 1. Load the prompts in the Console and verify the domain is auto-detected.
 2. Run a small test project (2–3 packages) through the full pipeline.
 3. Pay attention to Stage 05 (Review) — this is where domain-specific quality criteria matter most. If the reviewer doesn't know what to look for in your domain, the prompts need more specific guidance.
-4. Check that the Analyzer's cross-prompt consistency checks pass. Run the Analyzer against your compiled pack.
+4. If your pack uses `review_mode: "structural+craft"`, verify that the craft review prompt (05b_) produces useful annotative feedback without generating FINAL_DISPOSITION or REVIEW_BINDING_TOKEN. The Console should show the craft review and craft notes sections on the package-accepted screen.
+5. Check that the Analyzer's cross-prompt consistency checks pass. Run the Analyzer against your compiled pack.
 
 ## Example: What changed between Coding and Technical Report
 

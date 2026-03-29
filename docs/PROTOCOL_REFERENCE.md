@@ -1,6 +1,6 @@
 # Protocol Reference
 
-`pipeline_protocol_v1.json` (currently v1.3.1) is the single source of truth for structural validation across LLMFrame. It defines what every prompt must contain, which tokens are frozen, how stages hand off to each other, and the rules for clustered merge. Three consumers read this file: the Prompt Validator, the Prompt Analyzer, and the Operator Console.
+`pipeline_protocol_v1.json` (currently v1.4.0) is the single source of truth for structural validation across LLMFrame. It defines what every prompt must contain, which tokens are frozen, how stages hand off to each other, and the rules for clustered merge. All three consumers read this file: the Prompt Validator, the Prompt Analyzer, and the Operator Console (which loads it at runtime from the prompt folder or workspace root).
 
 This document explains what each section of the protocol does, why it exists, and what happens when you change it.
 
@@ -8,7 +8,7 @@ This document explains what each section of the protocol does, why it exists, an
 
 ```
 pipeline_protocol_v1.json
-├── version                    — semver string (e.g., "1.3.1")
+├── version                    — semver string (e.g., "1.4.0")
 ├── stages                     — per-stage validation rules
 │   ├── stage_01 ... stage_06
 │   │   ├── label              — human-readable stage name
@@ -20,6 +20,7 @@ pipeline_protocol_v1.json
 ├── escalation_patterns        — regex patterns for blocked/escalation routing
 ├── cross_prompt_checks        — inter-stage handoff validation
 ├── cluster_merge              — clustered merge configuration
+├── review_mode                — "gated" (default) or "structural+craft"
 └── agnostic_notes             — documents intentional absences in templates
 ```
 
@@ -53,7 +54,7 @@ Rules that apply across all stages, not tied to any single prompt:
 
 ## Escalation Patterns
 
-Regex patterns that detect when an LLM output signals a blocked state or requires escalation to an earlier stage. The Console uses these to identify when a package cannot proceed and needs operator intervention.
+Regex patterns that detect when an LLM output signals a blocked state or requires escalation to an earlier stage. The Analyzer validates these patterns against the prompts. The Console uses equivalent hardcoded patterns for runtime detection.
 
 The patterns match phrases like "Status: Blocked", "requires Architecture Spec revision", or "escalate to Stage 02". They are intentionally broad to catch varied LLM phrasing, but precise enough to avoid false positives on normal discussion of blocking concepts.
 
@@ -77,6 +78,17 @@ Configuration for the iterative merge system in Stage 06:
 - **substates** — the internal state machine for merge iteration (e.g., `MERGE_IN_PROGRESS`, `REWORK_REQUESTED`, `MERGE_ACCEPTED`).
 - **audit_event_types** — event types written to the audit log during merge operations.
 
+## Review Mode
+
+A top-level field that controls whether the Console offers craft review capabilities alongside the standard structural review gate.
+
+- **`"gated"`** (default): Stage 05 is binary ACCEPT/REWORK. No craft review UI. This is the standard behavior for software and other domains with fully verifiable quality criteria.
+- **`"structural+craft"`**: Stage 05 remains binary ACCEPT/REWORK for structural checks (continuity, contract compliance, internal logic). After a package is accepted, the Console additionally offers an optional craft review pass (annotative, non-gating) and a craft notes text field. Craft artifacts are tracked and audit-logged but never block merge.
+
+The Prompt Compiler sets this field based on whether the domain has subjective quality dimensions. Domain packs for creative writing, game narrative, editorial content, and similar fields should use `"structural+craft"`. The Console reads this field at protocol load time.
+
+When `review_mode` is `"structural+craft"`, the Prompt Compiler also produces a `05b_Craft_Reviewer.txt` prompt alongside the standard six. The Console's craft review builder looks for this file by the `05b_` prefix and falls back to the standard Stage 05 prompt with a craft-mode operator note if no dedicated prompt is available.
+
 ## Agnostic Notes
 
 Documents which frozen tokens are intentionally absent from the domain-agnostic templates and why. This prevents the Validator from raising false positives when validating templates instead of compiled prompts.
@@ -95,17 +107,18 @@ Runs cross-prompt consistency checks using the `cross_prompt_checks` and `escala
 
 ### Operator Console
 
-Uses frozen tokens and required sections to run plausibility checks on LLM output before saving artifacts. Uses contract ID prefixes to parse lineage. Uses escalation patterns to detect blocked states and route rework. Uses cluster merge configuration for Stage 06 operations.
+Loads `pipeline_protocol_v1.json` at runtime from the prompt folder or workspace root. On successful load, the Console derives stage labels, plausibility rules, and `review_mode` from the protocol. If the file is absent, the Console falls back to hardcoded constants aligned at v1.4.0. The protocol version and calibration date are displayed in the workspace footer.
 
 ## Versioning
 
 The protocol follows semantic versioning:
 
 - **Patch** (1.3.0 → 1.3.1): Documentation, `agnostic_notes` updates, no behavioral change.
+- **Minor** (1.3.1 → 1.4.0): New `review_mode` field, craft review support. No breaking changes — default remains `"gated"`.
 - **Minor** (1.2.0 → 1.3.0): New fields, new checks, new patterns. Existing consumers still work but may not leverage new features.
 - **Major** (1.x → 2.0): Breaking changes to field names, removed sections, changed semantics. All consumers must be updated.
 
-All three consumers display and verify the protocol version they were built against. A version mismatch between the loaded protocol and a consumer's expected version triggers a warning, not a block — allowing forward compatibility during incremental updates.
+The Validator and Analyzer load and display the protocol version directly. The Console displays a `PROTOCOL_VERSION` constant from `00_constants.js` that must be manually kept in sync. A version mismatch between the loaded protocol and a consumer's expected version triggers a warning, not a block — allowing forward compatibility during incremental updates.
 
 ## Modifying the Protocol
 

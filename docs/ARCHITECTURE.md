@@ -45,7 +45,7 @@ Domain packs (e.g., a coding pack) are compiled from agnostic templates plus dom
 
 ### 3. Protocol (Contract Layer)
 
-`pipeline_protocol_v1.json` (currently v1.3.1) is the single source of truth for structural validation. It defines what each prompt must contain, which tokens are frozen, how stages hand off to each other, and the cluster merge configuration.
+`pipeline_protocol_v1.json` (currently v1.4.0) is the single source of truth for structural validation. It defines what each prompt must contain, which tokens are frozen, how stages hand off to each other, and the cluster merge configuration.
 
 | Protocol section | Purpose |
 |---|---|
@@ -56,6 +56,7 @@ Domain packs (e.g., a coding pack) are compiled from agnostic templates plus dom
 | `escalation_patterns` | Regex patterns for detecting escalation/blocked-state routing |
 | `cross_prompt_checks` | Inter-stage handoff validation (e.g., S04 produces Delivery Report → S05 must reference it) |
 | `cluster_merge` | Threshold, cluster size, naming pattern, substates, audit event types |
+| `review_mode` | `"gated"` (default, binary ACCEPT/REWORK) or `"structural+craft"` (adds optional non-gating craft review and craft notes for packages that passed structural review) |
 | `agnostic_notes` | Documents which frozen tokens are intentionally absent from agnostic templates and why |
 
 The Protocol is consumed by the Prompt Validator (`pipeline_prompt_validator.html`), the Prompt Analyzer (`Pipeline_Prompt_Analyzer.txt`), and the Operator Console. The Validator and Analyzer load the protocol file directly. The Console loads `pipeline_protocol_v1.json` at runtime from the prompt folder or workspace root (added in C1) and derives stage labels, plausibility rules, and version display from it. If the file is absent, hardcoded fallback values are used.
@@ -153,6 +154,7 @@ These rules exist in prompt text, documentation, or conventions. Nothing enforce
 | End User Guide workflow descriptions | `07_End_User_Guide.md` — descriptive, not enforced |
 | LLM tier routing recommendations | Console UI shows slot descriptions but does not prevent using any model for any stage |
 | Contract ID prefix conventions | `stages[].contract_id_prefixes` in protocol — Validator can check prompts, but the LLM's output is not validated against these |
+| Craft review and craft notes | Available when `review_mode` is `"structural+craft"`. Non-gating — annotative feedback on subjective quality aspects. Does not affect merge eligibility. Console tracks and audit-logs craft artifacts but does not enforce them. |
 
 ---
 
@@ -233,8 +235,8 @@ Key terminology to watch:
 
 ## Protocol Versioning
 
-The protocol version (`pipeline_protocol_v1.json → version` field) is displayed in the Console workspace footer as a 10px monospace label (e.g., `Protocol v1.3.1`) with a tooltip showing the calibration date.
+The protocol version (`pipeline_protocol_v1.json → version` field) is displayed in the Console workspace footer as a 10px monospace label (e.g., `Protocol v1.4.0`) with a tooltip showing the calibration date.
 
 The protocol is versioned independently from the Console and from the prompt templates. A protocol version bump (e.g., 1.2.0 → 1.3.0) means that required_sections, frozen_tokens, or structural definitions have changed. The Console loads the protocol at runtime and updates its `PROTOCOL_VERSION` display automatically. If the protocol file is not available, the Console falls back to the version compiled into `00_constants.js`.
 
-Current version: **1.3.1** (calibrated 2026-03-26 against v5 agnostic templates + clustered merge design + C2 analyzer alignment + C5 editorial pass).
+Current version: **1.4.0** (calibrated 2026-03-29 against v5 agnostic templates + clustered merge design + C2 analyzer alignment + C5 editorial pass + craft review mode).

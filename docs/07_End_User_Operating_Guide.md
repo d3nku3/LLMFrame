@@ -103,6 +103,8 @@ If you are ever unsure which document or tool to rely on: open 07 when you need 
 
 **Why it matters:** A result can look fine and still be wrong for the pipeline. This stage catches that. The reviewer should use the full Work Package File, not only an extracted prompt body. Think of it as: "Check whether this piece really matches the plan."
 
+**Craft review (optional):** For domains with subjective quality dimensions (creative writing, game narrative), the pipeline supports an additional non-gating craft review pass focused on tone, pacing, and style. This requires `review_mode: "structural+craft"` in the protocol. See the [Console Guide](CONSOLE_GUIDE.md) for details.
+
 ### 6. Merge Coordinator
 
 **What it does:** Integrates reviewed pieces into a larger whole.

@@ -117,15 +117,53 @@ Present a table showing every `[DOMAIN: ...]` category and the concrete text you
 
 Ask: "Does this mapping look correct? Should I adjust anything?"
 
-### Step 3: Generate all 6 prompts
-After confirmation, produce 6 complete prompts. Every `[DOMAIN: ...]` marker is replaced. No markers remain.
+### Step 2b: Assess review mode
+
+Determine whether the domain needs a split review approach. Ask yourself:
+
+- Can quality in this domain be fully judged by structural/mechanical checks? (correctness, compliance, completeness)
+- Or does this domain also have subjective quality dimensions that resist binary pass/fail? (tone, voice, pacing, style, aesthetic judgment)
+
+**If purely structural** (software, engineering calculations, regulatory compliance):
+- Set `review_mode: "gated"` in the protocol output (this is the default)
+- Produce 6 prompts as normal
+
+**If mixed structural + subjective** (creative writing, game narrative, UX copy, editorial content, educational material):
+- Set `review_mode: "structural+craft"` in the protocol output
+- Produce 7 prompts: the normal 6 plus a `05b_Craft_Reviewer.txt`
+- The `05_` prompt handles structural review (continuity, internal logic, contract compliance) — with ACCEPT/REWORK gate as normal
+- The `05b_` prompt handles craft review (tone, pacing, voice, style) — annotative only, no FINAL_DISPOSITION, no binding block
+
+Tell the operator: "This domain has subjective quality aspects. I'm setting review_mode to structural+craft and generating a separate craft review prompt (05b_). The structural review remains the gate for merge eligibility. The craft review is optional annotative feedback."
+
+### Step 3: Generate prompts
+After confirmation, produce all prompts. Every `[DOMAIN: ...]` marker is replaced. No markers remain.
+- If `review_mode: "gated"`: produce 6 prompts (01–06)
+- If `review_mode: "structural+craft"`: produce 7 prompts (01–06 plus 05b)
+
+For the `05b_Craft_Reviewer` prompt:
+- Focus entirely on subjective quality: tone, pacing, voice, style, emotional arc, aesthetic coherence
+- Do NOT include FINAL_DISPOSITION, REVIEW_BINDING_TOKEN, or severity classifications (CRITICAL/MAJOR/MINOR)
+- Structure the output as annotative observations organized by aspect, not as pass/fail findings
+- Include a clear note that this review does not affect merge eligibility
+- The greeting should state: "I'm your [craft review role]. Paste the implementation output and I will provide annotative feedback on [domain-specific subjective aspects]."
 
 ### Step 4: Self-check
 For each output prompt:
 - Verify zero `[DOMAIN:` markers remain
-- Verify all frozen tokens from the preservation list are present
+- Verify all frozen tokens from the preservation list are present in prompts 01–06
 - Verify the initial greeting sentence is preserved (with domain role name filled in)
-- Verify `FINAL_DISPOSITION`, `REVIEW_BINDING_TOKEN`, `Delivery Report` appear in the correct prompts
+- Verify `FINAL_DISPOSITION`, `REVIEW_BINDING_TOKEN`, `Delivery Report` appear in the correct prompts (01–06)
+- If `05b_` was generated: verify it does NOT contain FINAL_DISPOSITION or REVIEW_BINDING_TOKEN
+
+### Step 5: Protocol output
+If `review_mode` is "structural+craft", produce a note for the operator:
+
+```
+PROTOCOL NOTE: Set "review_mode": "structural+craft" in your pipeline_protocol_v1.json.
+The Console will automatically enable craft review and craft notes for accepted packages.
+Place the 05b_ prompt file in your prompt folder alongside the other 6 prompt files.
+```
 
 ---
 
@@ -139,23 +177,25 @@ Each prompt file must be a `.txt` file starting with the two-digit stage number:
 02_[DomainRole].txt
 03_Project_Orchestrator.txt     (this role name never changes)
 04_[DomainRole].txt
-05_[DomainRole].txt
+05_[DomainRole].txt             (structural review — with gate)
+05b_[DomainRole].txt            (craft review — optional, only for structural+craft mode)
 06_[DomainRole].txt
 ```
 
-Example for a book project:
+Example for a game narrative project (structural+craft):
 ```
 01_Requirements_Engineer.txt
-02_Book_Architect.txt
+02_Narrative_Architect.txt
 03_Project_Orchestrator.txt
-04_Chapter_Author.txt
-05_Editorial_Reviewer.txt
-06_Manuscript_Assembler.txt
+04_Scene_Author.txt
+05_Continuity_Reviewer.txt
+05b_Craft_Reviewer.txt
+06_Narrative_Assembler.txt
 ```
 
-The Operator Console detects prompts by the `01_` through `06_` prefix only. The rest of the filename is free.
+The Operator Console detects prompts by the `01_` through `06_` prefix. The `05b_` prefix is recognized by the craft review builder. The rest of each filename is free.
 
-**One file per stage number.** Do not create two files starting with the same prefix.
+**One file per stage number.** Do not create two files starting with the same prefix — except `05_` (structural review) and `05b_` (craft review), which are intentionally separate.
 
 ### Prompt completeness
 Each prompt must be:
