@@ -18,6 +18,8 @@ Contributions are welcome — bug reports, documentation improvements, domain pa
 
 ## What to avoid
 
+Before proposing structural changes, read [Repo Governance](REPO_GOVERNANCE.md) — it defines what qualifies as a core change vs. a domain-pack recommendation, what evidence is required, and what the repo explicitly does not support.
+
 - **Don't change frozen tokens or protocol field names** without coordinating first. These are consumed by multiple tools and changing them silently breaks things.
 - **Don't add build tooling, package managers, or server dependencies.** Zero dependencies is a core design constraint, not a limitation to work around.
 - **Don't add autonomous agent features.** The human-in-the-loop is the point.
