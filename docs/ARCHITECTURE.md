@@ -45,7 +45,7 @@ Domain packs (e.g., a coding pack) are compiled from agnostic templates plus dom
 
 ### 3. Protocol (Contract Layer)
 
-`pipeline_protocol_v1.json` (currently v1.2.0) is the single source of truth for structural validation. It defines what each prompt must contain, which tokens are frozen, how stages hand off to each other, and the cluster merge configuration.
+`pipeline_protocol_v1.json` (currently v1.3.1) is the single source of truth for structural validation. It defines what each prompt must contain, which tokens are frozen, how stages hand off to each other, and the cluster merge configuration.
 
 | Protocol section | Purpose |
 |---|---|
@@ -58,7 +58,7 @@ Domain packs (e.g., a coding pack) are compiled from agnostic templates plus dom
 | `cluster_merge` | Threshold, cluster size, naming pattern, substates, audit event types |
 | `agnostic_notes` | Documents which frozen tokens are intentionally absent from agnostic templates and why |
 
-The Protocol is consumed by the Prompt Validator (`pipeline_prompt_validator.html`) and the Prompt Analyzer (`Pipeline_Prompt_Analyzer.txt`). The Console does not yet consume it at runtime — this is tracked as issue C1.
+The Protocol is consumed by the Prompt Validator (`pipeline_prompt_validator.html`), the Prompt Analyzer (`Pipeline_Prompt_Analyzer.txt`), and the Operator Console. The Validator and Analyzer load the protocol file directly. The Console loads `pipeline_protocol_v1.json` at runtime from the prompt folder or workspace root (added in C1) and derives stage labels, plausibility rules, and version display from it. If the file is absent, hardcoded fallback values are used.
 
 ---
 
@@ -233,8 +233,8 @@ Key terminology to watch:
 
 ## Protocol Versioning
 
-The protocol version (`pipeline_protocol_v1.json → version` field) is displayed in the Console workspace footer as a 10px monospace label (e.g., `Protocol v1.2.0`) with a tooltip showing the calibration date.
+The protocol version (`pipeline_protocol_v1.json → version` field) is displayed in the Console workspace footer as a 10px monospace label (e.g., `Protocol v1.3.1`) with a tooltip showing the calibration date.
 
-The protocol is versioned independently from the Console and from the prompt templates. A protocol version bump (e.g., 1.1.0 → 1.2.0) means that required_sections, frozen_tokens, or structural definitions have changed. The Console constant `PROTOCOL_VERSION` in `00_constants.js` must be updated to match.
+The protocol is versioned independently from the Console and from the prompt templates. A protocol version bump (e.g., 1.2.0 → 1.3.0) means that required_sections, frozen_tokens, or structural definitions have changed. The Console loads the protocol at runtime and updates its `PROTOCOL_VERSION` display automatically. If the protocol file is not available, the Console falls back to the version compiled into `00_constants.js`.
 
-Current version: **1.2.0** (calibrated 2026-03-25 against v5 agnostic templates + clustered merge design).
+Current version: **1.3.1** (calibrated 2026-03-26 against v5 agnostic templates + clustered merge design + C2 analyzer alignment + C5 editorial pass).
