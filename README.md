@@ -113,7 +113,7 @@ The framework makes rubber-stamping *harder*, but can't make it impossible. The 
 | **Prompt Analyzer** | Cross-prompt consistency checking — frozen token coverage, contract alignment, escalation patterns. |
 | **Analytics Dashboard** | Artifact timeline, package status, audit events. One HTML file, offline, exportable. |
 
-Not just for code — a Technical Report domain pack is included as a working non-coding reference.
+Not just for code — a Technical Report domain pack is included as a working non-coding reference. [How well does it transfer to other domains? →](docs/DOMAIN_TRANSFER.md)
 
 **→ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for the three-layer system design (Prompt Layer, Protocol Layer, Operator Layer) and the full [failure vocabulary](docs/ARCHITECTURE.md#failure-vocabulary).**
 
