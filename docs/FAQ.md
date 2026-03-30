@@ -2,7 +2,7 @@
 
 ## "How is this different from Cursor / Copilot / Windsurf?"
 
-Those are code-writing accelerators. They take a prompt and produce code, often impressively. LLMFrame doesn't write code — it manages the *process* around code generation. The question isn't "can the LLM write a function?" (it can), it's "can you trace why that function exists, what spec it implements, who reviewed it, and what breaks if you change it?" Cursor gives you the fish. LLMFrame gives you the audit trail of every fish ever caught.
+Those are code-writing accelerators. They take a prompt and produce code, often impressively. LLMFrame doesn't write code — it manages the *process* around code generation. The question isn't "can the LLM write a function?" (it can), it's "can you trace why that function exists, what spec it implements, who reviewed it, and what breaks if you change it?" Cursor takes nice pictures. LLMFrame takes x-rays.
 
 You can use both together. Use Cursor or Copilot to write the code, then paste the output into LLMFrame's Stage 04 as the implementation artifact. The pipeline doesn't care *how* the code was produced — it cares that it gets reviewed, fingerprinted, and tied to the spec that requested it.
 
