@@ -24,7 +24,7 @@ After one hour you should have: a workspace folder with saved artifacts, a manif
 ### "I'm evaluating this for compliance, governance, or audit."
 
 You don't need to run the pipeline to evaluate it:
-1. Read [Auditability & Traceability](docs/LLMFrame_Auditability_Traceability.md) for the one-page compliance summary (fingerprinting, lineage, review binding, rubber-stamp detection)
+1. Read [Auditability & Traceability](docs/LLMFrame_Auditability_Traceability.md) for the one-page compliance summary (fingerprinting, lineage, review binding, structural safeguards against rubber-stamping)
 2. Read [Architecture](docs/ARCHITECTURE.md#failure-vocabulary) for the failure vocabulary and enforcement model
 3. Read [Protocol Reference](docs/PROTOCOL_REFERENCE.md) for the complete protocol field documentation
 4. Optionally, run the walkthrough below and inspect the generated `audit_log.ndjson` and `artifact_manifest.json` in your workspace folder

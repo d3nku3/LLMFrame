@@ -5,12 +5,12 @@ The Operator Console is the browser-based control center for LLMFrame. It runs a
 ## Requirements
 
 - A **Chromium-based browser** (Chrome, Edge, Brave, Arc). Firefox does not support the File System Access API.
-- The `09_Operator_Console_v5.html` file and the `js/` folder in the same directory.
+- The `console.html` file and the `js/` folder in the same directory.
 - A set of 6 stage prompt files (see Prompt Setup below).
 
 ## First Launch
 
-1. Open `09_Operator_Console_v5.html` in your browser.
+1. Open `console.html` in your browser.
 2. Click **Select prompt folder** — pick the folder containing your stage prompt `.txt` files. This folder is read-only; the Console never writes into it.
 3. Click **Select workspace folder** — pick or create an empty folder for your project. The Console creates the internal structure (`stage01/`–`stage06/`, manifest, audit log) automatically.
 4. Set at least one Tier 1 and one Tier 2 LLM in the availability section.
@@ -52,7 +52,7 @@ The workflow: **Build → Copy → Switch → Work on something else → Switch 
 Every save triggers a chain of updates:
 
 - **Artifact manifest** (`artifact_manifest.json`) — ID, content fingerprint (SHA-256), revision number, status, and lineage for every artifact.
-- **Audit log** (`audit_log.ndjson`) — Append-only event journal. Records every operator action with timestamps, including elapsed time between artifact display and acceptance.
+- **Audit log** (`audit_log.ndjson`) — Append-only event journal. Records every operator action in sequence.
 - **Workspace state** (`workspace_state.json`) — Current stage positions, review bindings, package statuses.
 
 These files are machine-readable and human-inspectable. The workspace folder is the complete project record — lose the Console and the folder still tells the full story.

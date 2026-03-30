@@ -16,7 +16,7 @@ LLMFrame's core design premise is **one operator, multiple LLMs.** The operator 
 - **Linear state machine.** The project is at exactly one stage at any point in time. `resolveWorkflowSnapshot()` returns a single position.
 - **Sequential fingerprint chain.** Each artifact references a specific version of its upstream dependency via fingerprint. The chain is append-only and assumes nobody modifies upstream while downstream is in progress.
 - **File System Access API.** Direct read/write to local disk. No locking, no transaction boundaries, no network layer.
-- **Single audit log.** One append-only log file. No attribution beyond timestamps.
+- **Single audit log.** One append-only log file. No attribution beyond event sequence.
 
 This is not an oversight. It's a deliberate trade-off: maximum simplicity for the single-operator case, which is the only case that existed when the architecture was designed.
 
@@ -67,13 +67,13 @@ This is particularly insidious because the failure is silent. The system doesn't
 
 ### 2.4 Prompt Snapshot Collision (Certainty: High)
 
-The Console saves prompt snapshots (the exact prompt sent to the LLM) for audit purposes. Snapshots are keyed by stage and timestamp. Two operators triggering the same stage within the same second would overwrite each other's snapshots.
+The Console saves prompt snapshots (the exact prompt sent to the LLM) for audit purposes. Snapshots are keyed by stage and sequence. Two operators triggering the same stage concurrently could overwrite each other's snapshots.
 
 Even without exact collisions, the snapshot sequence becomes incoherent — snapshots from interleaved sessions that can't be reconstructed into a linear narrative.
 
 ### 2.5 Audit Log Interleaving (Certainty: 100%)
 
-The audit log is append-only, which means concurrent writes won't lose data (in most file systems, appends are atomic up to a buffer size). But the log will interleave entries from both operators with no clear separation. Reconstructing "what did Operator A do?" requires parsing timestamps and guessing attribution.
+The audit log is append-only, which means concurrent writes won't lose data (in most file systems, appends are atomic up to a buffer size). But the log will interleave entries from both operators with no clear separation. Reconstructing "what did Operator A do?" requires inferring from event sequence and guessing attribution.
 
 ### 2.6 Workspace File Conflicts (Certainty: Moderate)
 

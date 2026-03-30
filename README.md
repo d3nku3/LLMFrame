@@ -76,7 +76,7 @@ my-project/
 ├── stage06/
 │   └── integration_report_r1.txt
 ├── artifact_manifest.json        ← every artifact, its fingerprint, revision, status, lineage
-├── audit_log.ndjson              ← append-only log of every operator action with timestamps
+├── audit_log.ndjson              ← append-only log of every operator action
 ├── workspace_state.json          ← current pipeline state, stage positions, review bindings
 └── prompts/
     └── coding/

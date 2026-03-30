@@ -2,15 +2,15 @@
 
 ## The problem with AI-generated output in professional environments
 
-When a team uses LLMs to produce deliverables — specifications, code, analyses, reports — a fundamental governance question arises: *who accepted what, when, and on what basis?* Most LLM tools treat this as someone else's problem. The chat happened, the output was copy-pasted somewhere, and six weeks later nobody can reconstruct whether the architecture decision in paragraph three was reviewed by a senior engineer or rubber-stamped at 2 AM.
+When a team uses LLMs to produce deliverables — specifications, code, analyses, reports — a fundamental governance question arises: *who accepted what, and on what basis?* Most LLM tools treat this as someone else's problem. The chat happened, the output was copy-pasted somewhere, and six weeks later nobody can reconstruct whether the architecture decision in paragraph three was reviewed by a senior engineer or rubber-stamped without reading.
 
 LLMFrame treats auditability as a first-class architectural concern, not an afterthought.
 
 ## What gets tracked
 
-Every artifact produced during a pipeline run — from the initial requirements document through architecture specs, work packages, implementations, review reports, and the final integration verdict — is fingerprinted, versioned, and timestamped at the moment it is saved to disk. The system maintains three complementary records:
+Every artifact produced during a pipeline run — from the initial requirements document through architecture specs, work packages, implementations, review reports, and the final integration verdict — is fingerprinted and versioned at the moment it is saved to disk. The system maintains three complementary records:
 
-The **artifact manifest** stores the identity of every artifact: its unique ID, content fingerprint (SHA-256), revision number, current status, and lineage — which upstream artifacts it depends on. The **audit log** is an append-only, machine-readable event journal that records every operator action with a timestamp: who created, accepted, rejected, or escalated each artifact, and critically, the elapsed time between an artifact being presented and the operator's decision. The **workspace folder** itself is the complete project record. No database, no cloud service, no proprietary format. Hand the folder to an auditor, a new team member, or an external reviewer, and they can reconstruct every decision without needing the tool that created it.
+The **artifact manifest** stores the identity of every artifact: its unique ID, content fingerprint (SHA-256), revision number, current status, and lineage — which upstream artifacts it depends on. The **audit log** is an append-only, machine-readable event journal that records every operator action: who created, accepted, rejected, or escalated each artifact. Event order is preserved by file position. The **workspace folder** itself is the complete project record. No database, no cloud service, no proprietary format. Hand the folder to an auditor, a new team member, or an external reviewer, and they can reconstruct every decision without needing the tool that created it.
 
 ## Contract lineage across all stages
 
@@ -18,11 +18,23 @@ LLMFrame uses typed contract IDs to create traceable chains across the entire pi
 
 Review-to-implementation binding adds a cryptographic layer: each review report is tied to the exact fingerprint of the code version it evaluated. If the implementation is modified after review — even a single character — the binding breaks and the Console flags the artifact as requiring re-review. Post-review edits cannot pass silently.
 
-## Detecting rubber-stamping
+## Making rubber-stamping harder
 
 The most expensive failure mode in any review process is not rejection — it is false acceptance. A reviewer who clicks "Accept" without reading the output introduces undetected risk that compounds downstream.
 
-LLMFrame records the time delta between an artifact being displayed and the operator accepting it. A 200-line review report accepted three seconds after opening tells a different story than one accepted after twelve minutes. The system does not block the operator — human authority over the process is a core design principle. But the timing data is in the audit log, permanently. In a post-incident review, in a compliance audit, or simply in a team retrospective, rubber-stamping becomes visible.
+LLMFrame addresses this structurally, not behaviorally. Plausibility checks verify that LLM output contains expected sections, contract IDs, and status fields before it can be saved. Review-to-implementation binding ensures each review is tied to the exact fingerprint of the code it evaluated — accept an old version and the Console flags the mismatch. Review findings are classified by severity (CRITICAL, MAJOR, MINOR), and merge-blocking findings prevent Stage 06 handoff regardless of the review disposition.
+
+The system does not monitor how long the operator spends reading. Human authority over the process is a core design principle. The structural gates make careless acceptance more difficult, but they cannot make it impossible. The human remains the weakest and most important link.
+
+## Why no timestamps
+
+LLMFrame does not record timestamps in the audit log or artifact manifest. This is a deliberate decision, not an oversight.
+
+Timestamps reveal work patterns: when someone works, how fast they work, when they take breaks, whether they reviewed something at 2 AM or during office hours. This is behavioral data about the operator, not structural data about the project. A tool that promises "no telemetry, no data collection" should not produce files that let a third party reconstruct someone's work schedule.
+
+Pipeline traceability does not require timestamps. What matters is: which artifact exists, what it contains (fingerprint), which version it is (revision), what it depends on (lineage), and in what order events happened (file position in the append-only audit log). All of these work without knowing *when* they happened.
+
+Compliance environments that require temporal evidence typically have external infrastructure — Git commits, SIEM systems, file system journals — that timestamps at the system level. LLMFrame does not need to duplicate this, and doing so would create a privacy liability that contradicts the project's core values.
 
 ## What this means for enterprise environments
 
