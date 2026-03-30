@@ -96,7 +96,7 @@ The manifest and audit log are machine-readable. Lose the Console — the folder
 
 The framework makes rubber-stamping *harder*, but can't make it impossible. The human is still the weakest and most important link.
 
-**→ See [Auditability & Traceability](docs/LLMFrame_Auditability_Traceability.md) for a detailed overview of fingerprinting, contract lineage, review timing, and compliance relevance.**
+**→ See [Auditability & Traceability](docs/LLMFrame_Auditability_Traceability.md) for a detailed overview of fingerprinting, contract lineage, review binding, and compliance relevance.**
 
 ---
 
@@ -111,7 +111,7 @@ The framework makes rubber-stamping *harder*, but can't make it impossible. The 
 | **Prompt Validator** | Audits compiled prompts for structural completeness. Auto-repair, conformance fixtures. |
 | **Pipeline Protocol** | Single-source-of-truth JSON defining all frozen tokens, required sections, and stage metadata. Drives the Validator, Analyzer, and Console. |
 | **Prompt Analyzer** | Cross-prompt consistency checking — frozen token coverage, contract alignment, escalation patterns. |
-| **Analytics Dashboard** | Artifact timeline, package status, audit events. One HTML file, offline, exportable. |
+| **Analytics Dashboard** | Artifact sequence, package status, audit events. One HTML file, offline, exportable. |
 
 Not just for code — a Technical Report domain pack is included as a working non-coding reference. [How well does it transfer to other domains? →](docs/DOMAIN_TRANSFER.md)
 
@@ -155,7 +155,7 @@ Solo developers doing long sessions where one wrong assumption cascades into hou
 
 The Console isn't a clipboard manager — it's the operational backbone. It handles artifact tracking (IDs, revisions, fingerprints, lineage), stage enforcement (state machine, can't skip gates), manifest and audit log maintenance, review binding (cryptographic fingerprint ties each review to the exact implementation version), interactive dependency graphs, plausibility checks before every save, protocol drift detection, and domain pack switching with auto-detection.
 
-| Analytics Dashboard — package status, audit events, activity timeline |
+| Analytics Dashboard — package status, audit events, artifact sequence |
 |---|
 | ![Analytics](docs/screenshot_analytics.png) |
 

@@ -12,11 +12,11 @@ The pipeline is built from three independently versioned layers. Each layer has 
 
 ### 1. Console (Runtime)
 
-The Operator Console is a single HTML entry point (`hardened_console.html`) backed by ten JavaScript modules. It manages workspace state, builds request packets, tracks artifacts, and enforces the workflow state machine. All durable storage goes through the File System Access API — there is no server.
+The Operator Console is a single HTML entry point (`console.html`) backed by ten JavaScript modules. It manages workspace state, builds request packets, tracks artifacts, and enforces the workflow state machine. All durable storage goes through the File System Access API — there is no server.
 
 | File | Responsibility |
 |---|---|
-| `hardened_console.html` | Entry point, HTML shell, module loader |
+| `console.html` | Entry point, HTML shell, module loader |
 | `00_constants.js` | Configuration constants, feature flags, workflow state enum, transition table, LLM slot definitions, security limits |
 | `01_init.js` | Application bootstrap, workspace recovery, IndexedDB handle store |
 | `02_state.js` | State schema, default state factory, state access helpers |

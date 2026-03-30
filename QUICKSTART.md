@@ -61,12 +61,12 @@ Click **Import Prompts** and select all six prompt files:
 
 | File | Role |
 |---|---|
-| `01_Requirements_Engineer_v5.txt` | Interviews you, produces the Master Briefing |
-| `02_Technical_Architect_v5.txt` | Produces the Architecture Spec with frozen contracts |
-| `03_Project_Orchestrator_v5.txt` | Decomposes into work packages, routes to models |
-| `04_Module_Implementer_v5.txt` | Implements one work package at a time |
-| `05_Code_Reviewer_v5.txt` | Reviews against frozen contracts |
-| `06_Merge_Coordinator_v5.txt` | Merges accepted packages, verifies consistency |
+| `01_Requirements_Engineer.txt` | Interviews you, produces the Master Briefing |
+| `02_Technical_Architect.txt` | Produces the Architecture Spec with frozen contracts |
+| `03_Project_Orchestrator.txt` | Decomposes into work packages, routes to models |
+| `04_Module_Implementer.txt` | Implements one work package at a time |
+| `05_Code_Reviewer.txt` | Reviews against frozen contracts |
+| `06_Merge_Coordinator.txt` | Merges accepted packages, verifies consistency |
 
 The Console will confirm the import and show the prompts in the sidebar.
 

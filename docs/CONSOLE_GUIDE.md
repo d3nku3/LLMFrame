@@ -31,7 +31,7 @@ The Console detects stage prompts by filename prefix:
 | `05_`  | Review | Technical Reviewer |
 | `06_`  | Integration | Integration Coordinator |
 
-Filenames must start with the two-digit prefix. Everything after is flexible — `01_Requirements_Engineer_v5.txt` or `01_RE.txt` both work.
+Filenames must start with the two-digit prefix. Everything after is flexible — `01_Requirements_Engineer.txt` or `01_RE.txt` both work.
 
 ## The Workflow Loop
 

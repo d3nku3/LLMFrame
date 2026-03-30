@@ -118,7 +118,7 @@ The protocol follows semantic versioning:
 - **Minor** (1.2.0 → 1.3.0): New fields, new checks, new patterns. Existing consumers still work but may not leverage new features.
 - **Major** (1.x → 2.0): Breaking changes to field names, removed sections, changed semantics. All consumers must be updated.
 
-The Validator and Analyzer load and display the protocol version directly. The Console displays a `PROTOCOL_VERSION` constant from `00_constants.js` that must be manually kept in sync. A version mismatch between the loaded protocol and a consumer's expected version triggers a warning, not a block — allowing forward compatibility during incremental updates.
+All three consumers load and display the protocol version. The Console reads the version from the loaded protocol file at runtime; if the file is absent, it falls back to the version compiled into `00_constants.js`. A version mismatch between the loaded protocol and a consumer's expected version triggers a warning, not a block — allowing forward compatibility during incremental updates.
 
 ## Modifying the Protocol
 
@@ -127,7 +127,7 @@ If you need to add a frozen token, a new required section, or a new escalation p
 1. Edit `pipeline_protocol_v1.json` directly.
 2. Run the Prompt Validator against your prompt set to verify nothing broke.
 3. Run the Analyzer for cross-prompt consistency.
-4. If the Console has hardcoded rules that duplicate what you changed (see the C1 migration backlog in ARCHITECTURE.md), update those as well until the migration is complete.
+4. The Console loads the protocol at runtime, but maintains hardcoded fallback values in `00_constants.js` for when the protocol file is absent. If your change affects stage labels, plausibility rules, or version metadata, update the fallbacks as well.
 5. Bump the version number according to the severity of the change.
 
 **Do not** rename or remove frozen tokens without updating all prompts and all consumers simultaneously. A renamed token will silently break plausibility checks, review binding, or lineage parsing.
